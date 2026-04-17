@@ -1,4 +1,4 @@
-# SmartChat - AI Chat App
+# SmartChattr - AI Chat App
 
 [![Next.js](https://img.shields.io/badge/Next.js-14-blue.svg)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue.svg)](https://typescriptlang.org)
@@ -63,7 +63,7 @@ npm start
 ## 🏗️ Project Structure
 
 ```
-SmartChat/
+SmartChattr/
 ├── src/
 │   ├── app/              # App Router (pages + API)
 │   │   ├── chat/         # Chat UI

@@ -4,7 +4,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue.svg)](https://typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-blue.svg)](https://tailwindcss.com)
 
-Modern, mobile-first chat app powered by **Google Gemini 1.5 Flash** with **IndexedDB persistence**.
+Modern, mobile-first chat app powered by **Google Gemini 3 Flash** with **IndexedDB persistence**.
 
 ## ✨ Features
 
@@ -27,7 +27,7 @@ Modern, mobile-first chat app powered by **Google Gemini 1.5 Flash** with **Inde
 ### 1. Clone & Install
 ```bash
 git clone <repo-url>
-cd SmartChat
+cd SmartChattr
 npm install
 ```
 

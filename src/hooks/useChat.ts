@@ -14,14 +14,15 @@ export function useChat(chatId?: string | null) {
 
     setError(null);
     const userId = generateId();
-    const userMessage: Message = { id: userId, role: 'user' as MessageRole, content: text, chatId };
+    const now = new Date();
+    const userMessage: Message = { id: userId, role: 'user' as MessageRole, content: text, chatId, timestamp: now };
     setMessages((prev) => [...prev, userMessage]);
     setLoading(true);
 
     try {
       const reply = await callLLM(text);
       const assistantId = generateId();
-      const assistantMessage: Message = { id: assistantId, role: 'assistant' as MessageRole, content: reply, chatId };
+      const assistantMessage: Message = { id: assistantId, role: 'assistant' as MessageRole, content: reply, chatId, timestamp: new Date() };
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (err) {
       setError('Failed to get response. Please try again.');

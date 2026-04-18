@@ -36,6 +36,7 @@ export function MessageList({ messages }: MessageListProps) {
             key={message.id}
             role={message.role}
             content={message.content}
+            timestamp={message.timestamp}
             extraTopSpacing={extraTopSpacing}
           />
         );

@@ -29,7 +29,10 @@ export async function saveMessages(messages: Message[]): Promise<void> {
   await db.transaction('rw', db.messages, async () => {
     await db.messages.clear();
     if (messages.length > 0) {
-      await db.messages.bulkAdd(messages);
+      await db.messages.bulkAdd(messages.map((message) => ({
+        ...message,
+        timestamp: message.timestamp ?? new Date()
+      })));
     }
   });
 }
@@ -67,7 +70,11 @@ export async function saveChatMessages(chatId: string, messages: Message[]): Pro
     
     // Save new messages
     if (messages.length > 0) {
-      await db.messages.bulkAdd(messages.map(msg => ({...msg, chatId})));
+      await db.messages.bulkAdd(messages.map((msg) => ({
+        ...msg,
+        chatId,
+        timestamp: msg.timestamp ?? new Date()
+      })));
     }
     
     // Update chat preview + timestamp

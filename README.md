@@ -4,7 +4,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue.svg)](https://typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-blue.svg)](https://tailwindcss.com)
 
-Modern, mobile-first chat app powered by **Google Gemini 3 Flash** with **IndexedDB persistence**.
+Modern, mobile-first chat app powered by **Google Gemini 3 Flash** with **IndexedDB persistence**, **dark/light themes**, **message timestamps**, and **enhanced export capabilities**.
 
 ## ✨ Features
 
@@ -21,6 +21,11 @@ Modern, mobile-first chat app powered by **Google Gemini 3 Flash** with **Indexe
 | New chat / Delete chat / Export chats | ✅ |
 | Error handling + loading | ✅ |
 | Persists across refreshes | ✅ |
+| **Dark/Light theme switching** | ✅ |
+| **Message timestamps** | ✅ |
+| **Copy AI responses** | ✅ |
+| **Enhanced PDF export with markdown** | ✅ |
+| **Responsive settings menu** | ✅ |
 
 ## 🚀 Quick Start
 
@@ -57,8 +62,10 @@ npm start
 2. **Chat** → Type messages (Enter to send)
 3. **New chat** → Header button (clears + persists separately)
 4. **Sidebar navigation** → Select chats by URL route or create new chats
-5. **Export** → Export current or all chats as TXT, CSV, or PDF
-6. Messages **auto-save** to browser IndexedDB
+5. **Export** → Export current or all chats as TXT, CSV, or PDF (with markdown rendering)
+6. **Theme toggle** → Switch between light and dark modes in sidebar settings
+7. **Copy responses** → Click the copy button below AI messages to copy content
+8. Messages **auto-save** to browser IndexedDB with timestamps
 
 ## 🏗️ Project Structure
 
@@ -66,15 +73,24 @@ npm start
 SmartChattr/
 ├── src/
 │   ├── app/              # App Router (pages + API)
-│   │   ├── chat/         # Chat UI
+│   │   ├── chat/         # Chat UI with dynamic routes
 │   │   ├── api/chat/     # Gemini API route
-│   │   ├── globals.css   # Tailwind
+│   │   ├── globals.css   # Tailwind + theme variables
 │   │   └── layout.tsx
-│   ├── components/       # Reusable UI
-│   ├── hooks/            # useChat hook
-│   ├── lib/              # db.ts (Dexie) + llm.ts
-│   ├── types/            # Message + Chat types
-│   └── utils.ts          # generateId + cn()
+│   ├── components/       # Reusable UI components
+│   │   ├── MessageBubble.tsx  # Message rendering with timestamps & copy
+│   │   ├── ChatSidebar.tsx    # Navigation + settings menu
+│   │   ├── Header.tsx         # App header with navigation
+│   │   └── ...                 # Other UI components
+│   ├── hooks/            # Custom React hooks
+│   │   ├── useChat.ts    # Chat state management
+│   │   └── useChats.ts   # Multiple chats management
+│   ├── lib/              # Core utilities
+│   │   ├── db.ts         # Dexie IndexedDB setup
+│   │   └── llm.ts        # Gemini AI integration
+│   ├── types/            # TypeScript type definitions
+│   │   └── chat.ts       # Message & chat types
+│   └── utils.ts          # Helper functions + export utilities
 ├── .env.local.example    # API key template
 ├── tailwind.config.js
 ├── tsconfig.json
@@ -97,7 +113,9 @@ Frontend: Next.js 14 + React 18 + TypeScript 5
 Styling: Tailwind CSS 3.4
 Database: Dexie.js (IndexedDB)
 AI: Google Gemini 1.5 Flash
-Utils: Lucide React icons
+Markdown: React Markdown
+Icons: Lucide React
+Utils: Custom hooks + utilities
 ```
 
 ## 🌐 Environment Variables

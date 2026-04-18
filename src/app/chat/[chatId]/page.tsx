@@ -26,21 +26,12 @@ export default function ChatByIdPage() {
     loading,
     error,
     createNewChat: createChatHook,
-    deleteCurrentChat: deleteChatHook,
+    deleteChatById,
   } = useChats(selectedChatId);
 
   const handleCreateChat = async () => {
     const newChatId = await createChatHook();
     router.push(`/chat/${newChatId}`);
-  };
-
-  const handleDeleteChat = async () => {
-    const nextChatId = await deleteChatHook();
-    if (nextChatId) {
-      router.push(`/chat/${nextChatId}`);
-    } else {
-      router.push('/chat');
-    }
   };
 
   return (
@@ -50,7 +41,7 @@ export default function ChatByIdPage() {
           chats={chats}
           currentChatId={currentChatId}
           createNewChat={handleCreateChat}
-          deleteCurrentChat={handleDeleteChat}
+          deleteChat={deleteChatById}
         />
       </div>
       <div className={sidebarOpen ? 'fixed inset-0 z-40 bg-black/40 min-[1168px]:hidden' : 'hidden'} onClick={() => setSidebarOpen(false)} />
@@ -59,7 +50,7 @@ export default function ChatByIdPage() {
           chats={chats}
           currentChatId={currentChatId}
           createNewChat={handleCreateChat}
-          deleteCurrentChat={handleDeleteChat}
+          deleteChat={deleteChatById}
           onClose={() => setSidebarOpen(false)}
         />
       </div>

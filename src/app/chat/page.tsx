@@ -9,21 +9,12 @@ import { useChats } from '@/hooks/useChats';
 export default function ChatPage() {
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { chats, currentChatId, createNewChat: createChatHook, deleteCurrentChat: deleteChatHook } = useChats(null);
+  const { chats, currentChatId, createNewChat: createChatHook, deleteChatById } = useChats(null);
 
   const handleCreateChat = async () => {
     const newChatId = await createChatHook();
     setSidebarOpen(false);
     router.push(`/chat/${newChatId}`);
-  };
-
-  const handleDeleteChat = async () => {
-    const nextChatId = await deleteChatHook();
-    if (nextChatId) {
-      router.push(`/chat/${nextChatId}`);
-    } else {
-      router.push('/chat');
-    }
   };
 
   return (
@@ -33,7 +24,7 @@ export default function ChatPage() {
           chats={chats}
           currentChatId={currentChatId}
           createNewChat={handleCreateChat}
-          deleteCurrentChat={handleDeleteChat}
+          deleteChat={deleteChatById}
         />
       </div>
       <div className={sidebarOpen ? 'fixed inset-0 z-40 bg-black/40 min-[1168px]:hidden' : 'hidden'} onClick={() => setSidebarOpen(false)} />
@@ -42,7 +33,7 @@ export default function ChatPage() {
           chats={chats}
           currentChatId={currentChatId}
           createNewChat={handleCreateChat}
-          deleteCurrentChat={handleDeleteChat}
+          deleteChat={deleteChatById}
           onClose={() => setSidebarOpen(false)}
         />
       </div>

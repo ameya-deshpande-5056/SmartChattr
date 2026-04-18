@@ -84,23 +84,18 @@ export function useChats(selectedChatId?: string | null) {
     return newChatId;
   };
 
-  const deleteCurrentChat = async (): Promise<string | null> => {
-    if (!currentChatId) return null;
-
-    await deleteChat(currentChatId);
-    setChats((prev) => prev.filter((chat) => chat.id !== currentChatId));
-
-    const remainingChats = chats.filter((chat) => chat.id !== currentChatId);
-    let nextChatId: string | null = null;
-
-    if (remainingChats.length > 0) {
-      nextChatId = remainingChats[0].id;
-    } else {
-      nextChatId = await createNewChat();
+  const deleteChatById = async (chatId: string): Promise<void> => {
+    await deleteChat(chatId);
+    setChats((prev) => prev.filter((chat) => chat.id !== chatId));
+    if (currentChatId === chatId) {
+      const remainingChats = chats.filter((chat) => chat.id !== chatId);
+      if (remainingChats.length > 0) {
+        setCurrentChatId(remainingChats[0].id);
+      } else {
+        const newChatId = await createNewChat();
+        setCurrentChatId(newChatId);
+      }
     }
-
-    setCurrentChatId(nextChatId);
-    return nextChatId;
   };
 
   return {
@@ -113,7 +108,7 @@ export function useChats(selectedChatId?: string | null) {
     loading,
     error,
     createNewChat,
-    deleteCurrentChat,
+    deleteChatById,
   };
 }
 

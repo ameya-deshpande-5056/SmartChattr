@@ -1,19 +1,25 @@
 'use client';
 
 import { useEffect } from 'react';
-import { getTheme } from '@/utils';
+import { getTheme, getThemeMode } from '@/utils';
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const updateTheme = () => {
-      const theme = getTheme();
-      document.documentElement.classList.toggle('dark', theme === 'dark');
+      if (getThemeMode() === 'auto') {
+        const theme = getTheme();
+        document.documentElement.classList.toggle('dark', theme === 'dark');
+      }
     };
 
     updateTheme(); // Initial
 
-    // Update every hour
-    const interval = setInterval(updateTheme, 60 * 60 * 1000);
+    // Update every hour if auto
+    const interval = setInterval(() => {
+      if (getThemeMode() === 'auto') {
+        updateTheme();
+      }
+    }, 60 * 60 * 1000);
 
     return () => clearInterval(interval);
   }, []);

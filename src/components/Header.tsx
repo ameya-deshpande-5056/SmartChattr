@@ -1,4 +1,4 @@
-import { Menu } from 'lucide-react';
+import { Menu, Plus } from 'lucide-react';
 
 interface HeaderProps {
   onNewChat: () => void;
@@ -20,11 +20,13 @@ export function Header({ onNewChat, onMenuClick }: HeaderProps) {
         )}
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">SmartChattr</h1>
       </div>
-      <button
+        <button
         onClick={onNewChat}
-        className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+        aria-label="New chat"
+        title="New chat"
+        className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
       >
-        New Chat
+        <Plus className="h-5 w-5" />
       </button>
     </div>
   );

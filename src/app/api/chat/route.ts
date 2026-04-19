@@ -1,91 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { generateText } from '@/lib/aiProviders';
+import type { ChatTurn } from '@/lib/aiProviders';
 
 export async function POST(request: NextRequest) {
   try {
-    const { message } = await request.json();
+    const body = await request.json();
+    const message = typeof body?.message === 'string' ? body.message.trim() : '';
+    const history = Array.isArray(body?.history) ? (body.history as ChatTurn[]) : [];
 
     if (!message) {
       return NextResponse.json({ reply: 'Please provide a message.' }, { status: 400 });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    console.log('API key loaded:', !!apiKey);
+    const result = await generateText({
+      message,
+      history,
+      mode: 'chat',
+    });
 
-    if (!apiKey) {
-      return NextResponse.json({ reply: 'API key not configured. Check .env.local' }, { status: 500 });
+    if ('text' in result) {
+      return NextResponse.json({ reply: result.text });
     }
 
-    const modelUrls = [
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash:generateContent?key=${apiKey}`,
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`,
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2-flash:generateContent?key=${apiKey}`,
-    ];
-
-    const clientErrors: Array<{status: number; text: string}> = [];
-    let lastRetryError: {status: number; text: string} | null = null;
-
-    for (const url of modelUrls) {
-      try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{
-                text: message,
-              }],
-            }],
-          }),
-        });
-
-        const bodyText = await response.text();
-
-        if (response.ok) {
-          const data = JSON.parse(bodyText);
-          const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated.';
-          return NextResponse.json({ reply });
-        }
-
-        if (response.status === 429) {
-          lastRetryError = { status: response.status, text: bodyText };
-          console.warn('Gemini rate limit hit, trying next endpoint:', url);
-          continue;
-        }
-
-        if (response.status >= 400 && response.status < 500) {
-          clientErrors.push({ status: response.status, text: bodyText });
-          continue;
-        }
-
-        lastRetryError = { status: response.status, text: bodyText };
-      } catch (fetchError) {
-        console.error('Gemini fetch failed for url:', url, fetchError);
-        lastRetryError = { status: 500, text: String(fetchError) };
-      }
-    }
-
-    if (clientErrors.length > 0 && lastRetryError?.status !== 429) {
-      const { status, text } = clientErrors[0];
-      console.error('Gemini client errors from all models:', clientErrors);
-      return NextResponse.json({ reply: `Gemini client error ${status}: ${text.slice(0, 200)}` }, { status });
-    }
-
-    if (lastRetryError?.status === 429) {
+    if (result.error.status === 429) {
       return NextResponse.json({ reply: 'Rate limit exceeded. Please wait a moment and try again.' }, { status: 429 });
     }
 
-    throw new Error(`Gemini API error: ${lastRetryError?.status ?? 500} - ${lastRetryError?.text ?? 'Unknown error'}`);
+    const status = result.error.status >= 400 && result.error.status < 600 ? result.error.status : 500;
+    return NextResponse.json(
+      { reply: `${result.error.provider} ${result.error.model} error: ${result.error.text.slice(0, 200)}` },
+      { status },
+    );
   } catch (error) {
     console.error('Chat API error:', error);
-    if (error instanceof Error && error.message.includes('429')) {
-      return NextResponse.json({ reply: 'Rate limit exceeded. Please wait a moment and try again.' }, { status: 429 });
-    }
     return NextResponse.json({ reply: 'Sorry, something went wrong. Please try again.' }, { status: 500 });
   }
 }
-

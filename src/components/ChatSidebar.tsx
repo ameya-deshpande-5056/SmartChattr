@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { cn, downloadFile, buildChatText, buildPrintableChatSection, buildPrintableHtml, openPrintPreview, getThemeMode, setTheme } from '@/utils';
+import { cn, downloadFile, buildAllChatsPrintableHtml, buildChatText, buildPrintableHtml, openPrintPreview, getThemeMode, setTheme } from '@/utils';
 import type { ChatPreview } from '@/types/chat';
-import { Trash2, X, ChevronDown, Settings, Download, Package, Sun, Moon, Zap } from 'lucide-react';
-import { loadMessages, loadMessagesByChat } from '@/lib/db';
+import { Trash2, X, Settings, Download, Package, Sun, Moon, Zap, Upload, Database } from 'lucide-react';
+import { exportDatabaseBackup, importDatabaseBackup, loadMessages, loadMessagesByChat } from '@/lib/db';
 
 interface ChatSidebarProps {
   className?: string;
@@ -17,11 +17,13 @@ interface ChatSidebarProps {
 }
 
 export function ChatSidebar({ className, chats, currentChatId, createNewChat, deleteChat, onClose }: ChatSidebarProps) {
-  const [exportFormat, setExportFormat] = useState<'txt' | 'pdf'>('txt');
+  const [exportFormat, setExportFormat] = useState<'pdf' | 'txt'>('pdf');
   const [isExporting, setIsExporting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [themeMode, setThemeModeState] = useState<'auto' | 'light' | 'dark'>(getThemeMode);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const handleThemeChange = (mode: 'auto' | 'light' | 'dark') => {
     setTheme(mode);
@@ -34,6 +36,13 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
     const timer = window.setTimeout(() => setSuccessMessage(null), 4000);
     return () => window.clearTimeout(timer);
   }, [successMessage]);
+
+  useEffect(() => {
+    if (!errorMessage) return;
+
+    const timer = window.setTimeout(() => setErrorMessage(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [errorMessage]);
 
   const getChatById = (chatId: string) => chats.find((chat) => chat.id === chatId);
 
@@ -67,6 +76,48 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
     }
   };
 
+  const exportDatabase = async () => {
+    setIsExporting(true);
+    setErrorMessage(null);
+    try {
+      const backup = await exportDatabaseBackup();
+      downloadFile(
+        `smartchattr-backup-${new Date().toISOString().slice(0, 10)}.json`,
+        JSON.stringify(backup, null, 2),
+        'application/json',
+      );
+      setSuccessMessage('Full backup exported successfully!');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const importDatabase = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!window.confirm('Importing a backup will replace all current local chats on this device. Continue?')) {
+      event.target.value = '';
+      return;
+    }
+
+    setIsExporting(true);
+    setErrorMessage(null);
+
+    try {
+      const text = await file.text();
+      const backup = JSON.parse(text);
+      await importDatabaseBackup(backup);
+      setSuccessMessage('Backup imported successfully! Reloading...');
+      window.setTimeout(() => window.location.reload(), 800);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to import backup.');
+    } finally {
+      event.target.value = '';
+      setIsExporting(false);
+    }
+  };
+
   const dispatchExport = async (
     chat: ChatPreview,
     messages: Array<{ role: string; content: string }>,
@@ -91,17 +142,14 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
         .join('\n\n---\n\n');
       downloadFile('all-chats.txt', text, 'text/plain');
     } else {
-      const body = chatsWithMessages
-        .map(({ chat, messages }) => buildPrintableChatSection(chat.title, chat.id, chat.updatedAt.toISOString(), messages))
-        .join('<div style="page-break-after: always;"></div>');
-      const html = `
-        <html>
-          <head>
-            <title>All chats</title>
-          </head>
-          <body>${body}</body>
-        </html>
-      `;
+      const html = buildAllChatsPrintableHtml(
+        chatsWithMessages.map(({ chat, messages }) => ({
+          title: chat.title,
+          chatId: chat.id,
+          updatedAt: chat.updatedAt.toISOString(),
+          messages,
+        })),
+      );
       openPrintPreview('All chats', html);
     }
   };
@@ -117,6 +165,18 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
           <button
             type="button"
             onClick={() => setSuccessMessage(null)}
+            className="ml-3 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30"
+          >
+            ×
+          </button>
+        </div>
+      )}
+      {errorMessage && (
+        <div className="fixed top-4 left-4 z-50 max-w-xs rounded-xl bg-red-600 px-4 py-3 text-sm font-medium text-white shadow-lg">
+          {errorMessage}
+          <button
+            type="button"
+            onClick={() => setErrorMessage(null)}
             className="ml-3 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30"
           >
             ×
@@ -159,8 +219,8 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
                 className="flex-1 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                 aria-label="Export format"
               >
-                <option value="txt">TXT</option>
                 <option value="pdf">PDF</option>
+                <option value="txt">TXT</option>
               </select>
               <button
                 onClick={exportCurrentChat}
@@ -180,6 +240,38 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
               >
                 <Package className="h-5 w-5" />
               </button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Backup</label>
+            <div className="flex gap-2 items-center">
+              <button
+                onClick={exportDatabase}
+                disabled={isExporting}
+                aria-label="Export full backup"
+                title="Export full backup"
+                className="flex-1 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-slate-800 px-3 text-sm font-medium text-white hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <Database className="h-4 w-4" />
+                Export DB
+              </button>
+              <button
+                onClick={() => importInputRef.current?.click()}
+                disabled={isExporting}
+                aria-label="Import full backup"
+                title="Import full backup"
+                className="flex-1 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <Upload className="h-4 w-4" />
+                Import DB
+              </button>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                onChange={importDatabase}
+              />
             </div>
           </div>
           <div className="space-y-2">

@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import type { ChatPreview, Message } from '@/types/chat';
 import { createChat, loadChats, loadMessagesByChat, saveChatMessages, deleteChat, updateChatTitle } from '@/lib/db';
 import { useChat } from './useChat';
+import { generateChatTitle } from '@/lib/llm';
 
 export function useChats(selectedChatId?: string | null) {
   const [chats, setChats] = useState<ChatPreview[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(selectedChatId ?? null);
   const [chatTitle, setChatTitle] = useState('New Chat');
   const [messagesLoaded, setMessagesLoaded] = useState(false);
+  const [loadedChatId, setLoadedChatId] = useState<string | null>(null);
 
   const { messages, setMessages, sendMessage: chatSendMessage, loading, error } = useChat(currentChatId);
 
@@ -33,6 +35,16 @@ export function useChats(selectedChatId?: string | null) {
   }, []);
 
   useEffect(() => {
+    if (!currentChatId) {
+      setChatTitle('New Chat');
+      return;
+    }
+
+    const currentChat = chats.find((chat) => chat.id === currentChatId);
+    setChatTitle(currentChat?.title || 'New Chat');
+  }, [chats, currentChatId]);
+
+  useEffect(() => {
     if (selectedChatId !== undefined) {
       setCurrentChatId(selectedChatId);
     }
@@ -41,31 +53,45 @@ export function useChats(selectedChatId?: string | null) {
   useEffect(() => {
     setMessages([]);
     setMessagesLoaded(false);
+    setLoadedChatId(null);
 
     if (currentChatId !== null) {
       loadMessagesByChat(currentChatId).then((loaded) => {
         setMessages(loaded);
+        setLoadedChatId(currentChatId);
         setMessagesLoaded(true);
       });
     } else {
       setMessages([]);
+      setLoadedChatId(null);
       setMessagesLoaded(true);
     }
   }, [currentChatId, setMessages]);
 
   useEffect(() => {
-    if (currentChatId !== null && messagesLoaded) {
+    if (currentChatId !== null && messagesLoaded && loadedChatId === currentChatId) {
       saveChatMessages(currentChatId, messages);
     }
-  }, [messages, currentChatId, messagesLoaded]);
+  }, [messages, currentChatId, messagesLoaded, loadedChatId]);
 
   // Generate title from first user message
   useEffect(() => {
     if (currentChatId && messages.length === 1 && chatTitle === 'New Chat') {
       const firstMessage = messages[0];
       if (firstMessage.role === 'user') {
-        const generatedTitle = generateTitleFromMessage(firstMessage.content);
-        updateTitle(generatedTitle);
+        const fallbackTitle = generateTitleFromMessage(firstMessage.content);
+        updateTitle(fallbackTitle);
+
+        generateChatTitle(firstMessage.content)
+          .then((generatedTitle) => {
+            const safeTitle = generatedTitle.trim() || fallbackTitle;
+            if (safeTitle && currentChatId) {
+              updateTitle(safeTitle);
+            }
+          })
+          .catch(() => {
+            // Keep the local fallback title if the summarizer fails.
+          });
       }
     }
   }, [messages, currentChatId, chatTitle, updateTitle]);
@@ -85,10 +111,10 @@ export function useChats(selectedChatId?: string | null) {
   };
 
   const deleteChatById = async (chatId: string): Promise<void> => {
+    const remainingChats = chats.filter((chat) => chat.id !== chatId);
     await deleteChat(chatId);
-    setChats((prev) => prev.filter((chat) => chat.id !== chatId));
+    setChats(remainingChats);
     if (currentChatId === chatId) {
-      const remainingChats = chats.filter((chat) => chat.id !== chatId);
       if (remainingChats.length > 0) {
         setCurrentChatId(remainingChats[0].id);
       } else {

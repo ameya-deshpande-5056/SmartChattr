@@ -64,7 +64,7 @@ export function buildPrintableChatSection(title: string, chatId: string, updated
   `;
 }
 
-export function buildPrintableHtml(title: string, chatId: string, updatedAt: string, messages: Array<{ role: string; content: string }>) {
+function buildPrintableDocument(title: string, body: string) {
   return `
     <html>
       <head>
@@ -138,13 +138,52 @@ export function buildPrintableHtml(title: string, chatId: string, updatedAt: str
             font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
             font-size: 0.95rem;
           }
+          .message-body .code-shell {
+            margin: 0 0 16px;
+            border-radius: 18px;
+            overflow: hidden;
+            border: 1px solid #0f172a;
+            background: #0f172a;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+          }
+          .message-body .code-language {
+            padding: 10px 14px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+            background: #111827;
+            color: #94a3b8;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+          }
           .message-body pre {
             margin: 0 0 16px;
             padding: 16px;
             background: #111827;
             color: #f8fafc;
             border-radius: 18px;
-            overflow: auto;
+            overflow: visible;
+            white-space: pre-wrap;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+            line-height: 1.65;
+            tab-size: 2;
+          }
+          .message-body .code-shell pre {
+            margin: 0;
+            border-radius: 0;
+            background: #0f172a;
+          }
+          .message-body pre code {
+            display: block;
+            padding: 0;
+            background: transparent;
+            color: inherit;
+            border-radius: 0;
+            font-size: 0.88rem;
+            line-height: inherit;
+            white-space: inherit;
           }
           .message-body blockquote {
             margin: 0 0 16px;
@@ -156,6 +195,34 @@ export function buildPrintableHtml(title: string, chatId: string, updatedAt: str
           .message-body ul,
           .message-body ol {
             margin: 0 0 16px 24px;
+          }
+          .message-body hr {
+            margin: 18px 0;
+            border: 0;
+            border-top: 1px solid #cbd5e1;
+          }
+          .message-body table {
+            width: 100%;
+            margin: 0 0 16px;
+            border-collapse: collapse;
+            font-size: 0.95rem;
+          }
+          .message-body th,
+          .message-body td {
+            border: 1px solid #d1d5db;
+            padding: 10px 12px;
+            text-align: left;
+            vertical-align: top;
+          }
+          .message-body th {
+            background: #f8fafc;
+            font-weight: 700;
+          }
+          .message-body input[type="checkbox"] {
+            margin-right: 8px;
+          }
+          .message-body del {
+            color: #64748b;
           }
           .message-body a {
             color: #2563eb;
@@ -179,10 +246,27 @@ export function buildPrintableHtml(title: string, chatId: string, updatedAt: str
         </style>
       </head>
       <body>
-        ${buildPrintableChatSection(title, chatId, updatedAt, messages)}
+        ${body}
       </body>
     </html>
   `;
+}
+
+export function buildPrintableHtml(title: string, chatId: string, updatedAt: string, messages: Array<{ role: string; content: string }>) {
+  return buildPrintableDocument(
+    title,
+    buildPrintableChatSection(title, chatId, updatedAt, messages),
+  );
+}
+
+export function buildAllChatsPrintableHtml(
+  chatsWithMessages: Array<{ title: string; chatId: string; updatedAt: string; messages: Array<{ role: string; content: string }> }>,
+) {
+  const body = chatsWithMessages
+    .map(({ title, chatId, updatedAt, messages }) => buildPrintableChatSection(title, chatId, updatedAt, messages))
+    .join('<div style="height: 8px; page-break-after: always;"></div>');
+
+  return buildPrintableDocument('All chats', body);
 }
 
 function renderMarkdownAsHtml(text: string) {
@@ -190,7 +274,10 @@ function renderMarkdownAsHtml(text: string) {
   const lines = escaped.split('\n');
   let html = '';
   let inCodeBlock = false;
+  let codeLanguage = '';
   let listType: 'ul' | 'ol' | '' = '';
+  let inTable = false;
+  let tableHeaderRendered = false;
 
   const closeList = () => {
     if (listType === 'ul') {
@@ -202,26 +289,51 @@ function renderMarkdownAsHtml(text: string) {
     }
   };
 
+  const closeTable = () => {
+    if (inTable) {
+      html += '</tbody></table>';
+      inTable = false;
+      tableHeaderRendered = false;
+    }
+  };
+
   const formatInline = (line: string) =>
     line
       .replace(/\[(.+?)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
       .replace(/`([^`]+)`/g, '<code>$1</code>')
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
       .replace(/__(.+?)__/g, '<strong>$1</strong>')
+      .replace(/~~(.+?)~~/g, '<del>$1</del>')
       .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/_(.+?)_/g, '<em>$1</em>');
+      .replace(/_(.+?)_/g, '<em>$1</em>')
+      .replace(/ {2,}\n/g, '<br />');
 
-  for (const line of lines) {
+  const isTableDivider = (line: string) =>
+    /^\|?(\s*:?-{3,}:?\s*\|)+\s*:?-{3,}:?\s*\|?$/.test(line);
+
+  const parseTableCells = (line: string) =>
+    line
+      .trim()
+      .replace(/^\|/, '')
+      .replace(/\|$/, '')
+      .split('|')
+      .map((cell) => formatInline(cell.trim()));
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
     const trimmed = line.trim();
 
     if (/^```/.test(trimmed)) {
       if (!inCodeBlock) {
         inCodeBlock = true;
+        codeLanguage = trimmed.replace(/^```/, '').trim();
         closeList();
-        html += '<pre><code>';
+        closeTable();
+        html += `<div class="code-shell">${codeLanguage ? `<div class="code-language">${codeLanguage}</div>` : ''}<pre><code>`;
       } else {
         inCodeBlock = false;
-        html += '</code></pre>';
+        codeLanguage = '';
+        html += '</code></pre></div>';
       }
       continue;
     }
@@ -233,12 +345,45 @@ function renderMarkdownAsHtml(text: string) {
 
     if (trimmed === '') {
       closeList();
+      closeTable();
       continue;
+    }
+
+    if (/^---+$|^\*\*\*+$|^___+$/.test(trimmed)) {
+      closeList();
+      closeTable();
+      html += '<hr />';
+      continue;
+    }
+
+    if (trimmed.includes('|')) {
+      const nextLine = lines[index + 1]?.trim() ?? '';
+      if (!inTable && nextLine && isTableDivider(nextLine)) {
+        closeList();
+        const headerCells = parseTableCells(trimmed);
+        html += `<table><thead><tr>${headerCells.map((cell) => `<th>${cell}</th>`).join('')}</tr></thead><tbody>`;
+        inTable = true;
+        tableHeaderRendered = true;
+        continue;
+      }
+
+      if (inTable && !isTableDivider(trimmed)) {
+        const rowCells = parseTableCells(trimmed);
+        html += `<tr>${rowCells.map((cell) => `<td>${cell}</td>`).join('')}</tr>`;
+        continue;
+      }
+
+      if (inTable && isTableDivider(trimmed) && tableHeaderRendered) {
+        continue;
+      }
+    } else {
+      closeTable();
     }
 
     const heading = /^(#{1,6})\s+(.*)$/.exec(trimmed);
     if (heading) {
       closeList();
+      closeTable();
       html += `<h${heading[1].length}>${formatInline(heading[2])}</h${heading[1].length}>`;
       continue;
     }
@@ -246,7 +391,21 @@ function renderMarkdownAsHtml(text: string) {
     const blockquote = /^>\s+(.*)$/.exec(trimmed);
     if (blockquote) {
       closeList();
+      closeTable();
       html += `<blockquote>${formatInline(blockquote[1])}</blockquote>`;
+      continue;
+    }
+
+    const taskMatch = /^[-*+]\s+\[( |x|X)\]\s+(.*)$/.exec(trimmed);
+    if (taskMatch) {
+      if (listType !== 'ul') {
+        closeList();
+        closeTable();
+        html += '<ul>';
+        listType = 'ul';
+      }
+      const checked = taskMatch[1].toLowerCase() === 'x' ? ' checked' : '';
+      html += `<li><input type="checkbox" disabled${checked} />${formatInline(taskMatch[2])}</li>`;
       continue;
     }
 
@@ -254,6 +413,7 @@ function renderMarkdownAsHtml(text: string) {
     if (ulMatch) {
       if (listType !== 'ul') {
         closeList();
+        closeTable();
         html += '<ul>';
         listType = 'ul';
       }
@@ -265,6 +425,7 @@ function renderMarkdownAsHtml(text: string) {
     if (olMatch) {
       if (listType !== 'ol') {
         closeList();
+        closeTable();
         html += '<ol>';
         listType = 'ol';
       }
@@ -273,13 +434,15 @@ function renderMarkdownAsHtml(text: string) {
     }
 
     closeList();
+    closeTable();
     html += `<p>${formatInline(trimmed)}</p>`;
   }
 
   closeList();
+  closeTable();
 
   if (inCodeBlock) {
-    html += '</code></pre>';
+    html += '</code></pre></div>';
   }
 
   return html;

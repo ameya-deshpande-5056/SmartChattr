@@ -5,6 +5,8 @@ import type { FC } from 'react';
 import { cn } from '@/utils';
 import type { MessageRole } from '@/types/chat';
 import ReactMarkdown from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
 import { Copy } from 'lucide-react';
 
 interface MessageBubbleProps {
@@ -86,19 +88,38 @@ export function MessageBubble({ role, content, timestamp, extraTopSpacing }: Mes
           : 'bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-bl-sm'
       )}>
         <ReactMarkdown
+          remarkPlugins={[remarkGfm, remarkBreaks]}
           components={{
             code: (props) => <CodeBlock {...props} role={role} />,
             h1: ({ children }) => <h1 className={cn("text-xl font-semibold mt-6 mb-3 last:mb-0", role === 'user' ? 'text-white' : 'text-slate-900 dark:text-slate-100')}>{children}</h1>,
             h2: ({ children }) => <h2 className={cn("text-lg font-semibold mt-5 mb-2 last:mb-0", role === 'user' ? 'text-white' : 'text-slate-900 dark:text-slate-100')}>{children}</h2>,
             h3: ({ children }) => <h3 className={cn("text-base font-semibold mt-4 mb-2 last:mb-0", role === 'user' ? 'text-white' : 'text-slate-900 dark:text-slate-100')}>{children}</h3>,
+            h4: ({ children }) => <h4 className={cn("text-sm font-semibold mt-4 mb-2 last:mb-0", role === 'user' ? 'text-white' : 'text-slate-900 dark:text-slate-100')}>{children}</h4>,
             p: ({ children }) => <p className={cn("mt-3 mb-0 first:mt-0 last:mb-0 text-sm leading-7", role === 'user' ? 'text-white' : 'text-slate-800 dark:text-slate-200')}>{children}</p>,
             ul: ({ children }) => <ul className={cn("mt-3 mb-0 first:mt-0 last:mb-0 ml-5 list-disc space-y-2 text-sm", role === 'user' ? 'text-white' : 'text-slate-800 dark:text-slate-200')}>{children}</ul>,
             ol: ({ children }) => <ol className={cn("mt-3 mb-0 first:mt-0 last:mb-0 ml-5 list-decimal space-y-2 text-sm", role === 'user' ? 'text-white' : 'text-slate-800 dark:text-slate-200')}>{children}</ol>,
+            li: ({ children }) => <li className="leading-7">{children}</li>,
             blockquote: ({ children }) => (
               <blockquote className={cn("mt-3 mb-0 first:mt-0 last:mb-0 border-l-4 pl-4 italic", role === 'user' ? 'border-white/30 text-white/80' : 'border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-300')}>{children}</blockquote>
             ),
+            table: ({ children }) => (
+              <div className="my-4 overflow-x-auto">
+                <table className={cn("min-w-full border-collapse text-sm", role === 'user' ? 'text-white' : 'text-slate-800 dark:text-slate-200')}>{children}</table>
+              </div>
+            ),
+            thead: ({ children }) => <thead className={role === 'user' ? 'bg-white/10' : 'bg-slate-100 dark:bg-slate-700/70'}>{children}</thead>,
+            tbody: ({ children }) => <tbody>{children}</tbody>,
+            tr: ({ children }) => <tr className={role === 'user' ? 'border-b border-white/10' : 'border-b border-slate-200 dark:border-slate-700'}>{children}</tr>,
+            th: ({ children }) => <th className="border px-3 py-2 text-left font-semibold">{children}</th>,
+            td: ({ children }) => <td className="border px-3 py-2 align-top">{children}</td>,
+            hr: () => <hr className={cn("my-4 border-0 border-t", role === 'user' ? 'border-white/20' : 'border-slate-300 dark:border-slate-600')} />,
+            del: ({ children }) => <del className="opacity-80">{children}</del>,
+            input: ({ checked, disabled, type }) => {
+              if (type !== 'checkbox') return null;
+              return <input type="checkbox" checked={checked} disabled={disabled ?? true} readOnly className="mr-2 align-middle" />;
+            },
             a: ({ href, children }) => (
-              <a href={href} className={cn("hover:underline", role === 'user' ? 'text-blue-200' : 'text-blue-600 dark:text-blue-300')}>{children}</a>
+              <a href={href} target="_blank" rel="noreferrer" className={cn("hover:underline break-words", role === 'user' ? 'text-blue-200' : 'text-blue-600 dark:text-blue-300')}>{children}</a>
             ),
           }}
         >
@@ -120,9 +141,15 @@ export function MessageBubble({ role, content, timestamp, extraTopSpacing }: Mes
               onClick={handleCopyMessage}
               aria-label="Copy message"
               title={copied ? 'Copied!' : 'Copy message'}
-              className="inline-flex h-6 w-6 items-center justify-center rounded text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+              className={cn(
+                "inline-flex h-7 items-center justify-center gap-1.5 rounded px-2 text-xs font-medium transition-all",
+                copied
+                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              )}
             >
               <Copy className="h-3.5 w-3.5" />
+              <span>{copied ? 'Copied!' : 'Copy'}</span>
             </button>
           </div>
         </div>

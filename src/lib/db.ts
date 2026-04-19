@@ -2,8 +2,23 @@ import Dexie, { Table } from 'dexie';
 import { generateId } from '../utils';
 import type { Message, ChatPreview } from '../types/chat';
 
+type StoredChat = {
+  id: string;
+  title: string;
+  preview: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type DatabaseBackup = {
+  version: 1;
+  exportedAt: string;
+  chats: StoredChat[];
+  messages: Message[];
+};
+
 export class ChatDb extends Dexie {
-  chats!: Table<{id: string, title: string, preview: string, createdAt: Date, updatedAt: Date}>;
+  chats!: Table<StoredChat>;
   messages!: Table<Message>;
 
   constructor() {
@@ -24,21 +39,29 @@ export class ChatDb extends Dexie {
 
 export const db = new ChatDb();
 
+function normalizeMessage(message: Partial<Message> & { role: Message['role']; content: string; chatId: string }): Message {
+  return {
+    id: typeof message.id === 'string' && message.id.trim() ? message.id : generateId(),
+    role: message.role,
+    content: message.content,
+    chatId: message.chatId,
+    timestamp: message.timestamp ? new Date(message.timestamp) : new Date(),
+  };
+}
+
 // Legacy compatibility
 export async function saveMessages(messages: Message[]): Promise<void> {
   await db.transaction('rw', db.messages, async () => {
     await db.messages.clear();
     if (messages.length > 0) {
-      await db.messages.bulkAdd(messages.map((message) => ({
-        ...message,
-        timestamp: message.timestamp ?? new Date()
-      })));
+      await db.messages.bulkPut(messages.map((message) => normalizeMessage(message)));
     }
   });
 }
 
 export async function loadMessages(): Promise<Message[]> {
-  return await db.messages.toArray();
+  const messages = await db.messages.toArray();
+  return messages.map((message) => normalizeMessage(message));
 }
 
 // New multi-chat functions
@@ -60,7 +83,8 @@ export async function loadChats(): Promise<ChatPreview[]> {
 }
 
 export async function loadMessagesByChat(chatId: string): Promise<Message[]> {
-  return await db.messages.where('chatId').equals(chatId).toArray();
+  const messages = await db.messages.where('chatId').equals(chatId).toArray();
+  return messages.map((message) => normalizeMessage(message));
 }
 
 export async function saveChatMessages(chatId: string, messages: Message[]): Promise<void> {
@@ -70,10 +94,9 @@ export async function saveChatMessages(chatId: string, messages: Message[]): Pro
     
     // Save new messages
     if (messages.length > 0) {
-      await db.messages.bulkAdd(messages.map((msg) => ({
+      await db.messages.bulkPut(messages.map((msg) => normalizeMessage({
         ...msg,
         chatId,
-        timestamp: msg.timestamp ?? new Date()
       })));
     }
     
@@ -95,5 +118,91 @@ export async function deleteChat(chatId: string): Promise<void> {
 
 export async function updateChatTitle(chatId: string, title: string): Promise<void> {
   await db.chats.update(chatId, { title, updatedAt: new Date() });
+}
+
+export async function exportDatabaseBackup(): Promise<DatabaseBackup> {
+  const [chats, messages] = await Promise.all([
+    db.chats.toArray(),
+    db.messages.toArray(),
+  ]);
+
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    chats: chats.map((chat) => ({
+      ...chat,
+      createdAt: new Date(chat.createdAt),
+      updatedAt: new Date(chat.updatedAt),
+    })),
+    messages: messages.map((message) => normalizeMessage(message)),
+  };
+}
+
+export async function importDatabaseBackup(backup: unknown): Promise<void> {
+  if (!backup || typeof backup !== 'object') {
+    throw new Error('Invalid backup file.');
+  }
+
+  const data = backup as Partial<DatabaseBackup>;
+  const chats = Array.isArray(data.chats) ? data.chats : null;
+  const messages = Array.isArray(data.messages) ? data.messages : null;
+
+  if (!chats || !messages) {
+    throw new Error('Backup file is missing chats or messages.');
+  }
+
+  const normalizedChats: StoredChat[] = chats.map((chat) => {
+    const candidate = chat as Partial<StoredChat>;
+    if (!candidate.id || typeof candidate.id !== 'string') {
+      throw new Error('Backup contains a chat without a valid id.');
+    }
+
+    return {
+      id: candidate.id,
+      title: typeof candidate.title === 'string' ? candidate.title : 'New Chat',
+      preview: typeof candidate.preview === 'string' ? candidate.preview : '',
+      createdAt: candidate.createdAt ? new Date(candidate.createdAt) : new Date(),
+      updatedAt: candidate.updatedAt ? new Date(candidate.updatedAt) : new Date(),
+    };
+  });
+
+  const validChatIds = new Set(normalizedChats.map((chat) => chat.id));
+  const normalizedMessages = messages
+    .map((message) => {
+      const candidate = message as Partial<Message>;
+      if (!candidate.chatId || !validChatIds.has(candidate.chatId)) {
+        return null;
+      }
+
+      if (candidate.role !== 'user' && candidate.role !== 'assistant') {
+        return null;
+      }
+
+      if (typeof candidate.content !== 'string') {
+        return null;
+      }
+
+      return normalizeMessage({
+        id: candidate.id,
+        role: candidate.role,
+        content: candidate.content,
+        chatId: candidate.chatId,
+        timestamp: candidate.timestamp,
+      });
+    })
+    .filter((message): message is Message => Boolean(message));
+
+  await db.transaction('rw', [db.chats, db.messages], async () => {
+    await db.messages.clear();
+    await db.chats.clear();
+
+    if (normalizedChats.length > 0) {
+      await db.chats.bulkPut(normalizedChats);
+    }
+
+    if (normalizedMessages.length > 0) {
+      await db.messages.bulkPut(normalizedMessages);
+    }
+  });
 }
 

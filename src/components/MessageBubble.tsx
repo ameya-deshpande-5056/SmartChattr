@@ -84,7 +84,7 @@ export function MessageBubble({ role, content, timestamp, extraTopSpacing }: Mes
           : 'w-full min-[1168px]:w-[80%] self-start min-[1168px]:self-center',
         'px-4 py-3 rounded-3xl text-sm prose prose-sm prose-headings:text-inherit group relative',
         role === 'user'
-          ? 'bg-blue-500 text-white rounded-br-sm prose-light'
+          ? 'bg-blue-500 text-white rounded-br-sm prose-light min-[1168px]:mr-[10%]'
           : 'bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-bl-sm'
       )}>
         <ReactMarkdown

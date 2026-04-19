@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { ChatPreview, Message } from '@/types/chat';
+import type { ChatPreview } from '@/types/chat';
 import { createChat, loadChats, loadMessagesByChat, saveChatMessages, deleteChat, updateChatTitle } from '@/lib/db';
 import { useChat } from './useChat';
 import { generateChatTitle } from '@/lib/llm';
@@ -130,6 +130,7 @@ export function useChats(selectedChatId?: string | null) {
     chatTitle,
     updateTitle,
     messages,
+    messagesReady: messagesLoaded && (currentChatId === null || loadedChatId === currentChatId),
     sendMessage: chatSendMessage,
     loading,
     error,

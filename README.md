@@ -1,5 +1,9 @@
 # SmartChattr
 
+<p align="center">
+  <img src="./public/brandmark.svg" alt="SmartChattr logo" width="88" height="88" />
+</p>
+
 [![Next.js](https://img.shields.io/badge/Next.js-14-blue.svg)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue.svg)](https://typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-blue.svg)](https://tailwindcss.com)
@@ -9,6 +13,7 @@ A local-first AI chat app built with Next.js, TypeScript, Dexie, and multiple LL
 ## Features
 
 - Multi-chat interface with route-based chat navigation
+- Guided starter prompts for faster first messages
 - Local IndexedDB persistence with refresh-safe chat history
 - AI provider fallback chain for chat responses
 - Context-aware routing for live/current-info prompts
@@ -80,14 +85,15 @@ npm start
 ## Usage
 
 1. Open the landing page and click `Start chatting`
-2. Create or select a chat from the sidebar
-3. Send messages and let SmartChattr keep a compact rolling context window
-4. Use the settings menu to:
+2. Start a fresh chat by typing your own message or tapping a starter prompt
+3. Create or select chats from the sidebar as needed
+4. Send messages and let SmartChattr keep a compact rolling context window
+5. Use the settings menu to:
    - export the current chat
    - export all chats
    - export/import the full local database
    - switch theme mode
-5. Use the copy button below assistant messages for quick copy feedback
+6. Use the copy button below assistant messages for quick copy feedback
 
 ## Export and Backup
 

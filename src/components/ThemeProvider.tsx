@@ -1,23 +1,62 @@
 'use client';
 
 import { useEffect } from 'react';
-import { getTheme } from '@/utils';
+import { getMillisecondsUntilNextThemeChange, getTheme, getThemeMode } from '@/utils';
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
+    let timeoutId: number | null = null;
+
     const updateTheme = () => {
       const theme = getTheme();
       document.documentElement.classList.toggle('dark', theme === 'dark');
     };
 
-    updateTheme(); // Initial
+    const scheduleNextUpdate = () => {
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
 
-    // Keep auto mode roughly in sync with time-based theme changes.
-    const interval = setInterval(() => {
+      if (getThemeMode() !== 'auto') {
+        timeoutId = null;
+        return;
+      }
+
+      timeoutId = window.setTimeout(() => {
+        updateTheme();
+        scheduleNextUpdate();
+      }, getMillisecondsUntilNextThemeChange());
+    };
+
+    const syncTheme = () => {
       updateTheme();
-    }, 60 * 60 * 1000);
+      scheduleNextUpdate();
+    };
 
-    return () => clearInterval(interval);
+    const handleVisibilityOrFocus = () => {
+      syncTheme();
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === 'theme') {
+        syncTheme();
+      }
+    };
+
+    syncTheme();
+
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('storage', handleStorage);
+    };
   }, []);
 
   return <>{children}</>;

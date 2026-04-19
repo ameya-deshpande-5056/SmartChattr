@@ -1,4 +1,5 @@
 import { Menu, Plus } from 'lucide-react';
+import { BrandMark } from '@/components/BrandMark';
 
 interface HeaderProps {
   onNewChat: () => void;
@@ -18,9 +19,12 @@ export function Header({ onNewChat, onMenuClick }: HeaderProps) {
             <Menu className="h-5 w-5" />
           </button>
         )}
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">SmartChattr</h1>
+        <div className="flex items-center gap-3">
+          <BrandMark className="h-8 w-8 shrink-0" />
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">SmartChattr</h1>
+        </div>
       </div>
-        <button
+      <button
         onClick={onNewChat}
         aria-label="New chat"
         title="New chat"

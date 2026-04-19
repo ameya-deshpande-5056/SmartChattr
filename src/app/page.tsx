@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { BrandMark } from '@/components/BrandMark';
 
 const features = [
   'Persistent local chat history',
@@ -11,13 +12,16 @@ export default function LandingPage() {
     <main className="min-h-screen bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-6 sm:px-8 lg:px-10">
         <header className="flex items-center justify-between border-b border-gray-200 pb-5 dark:border-gray-700">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
-              SmartChattr
-            </p>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Simple AI chat, kept on your device.
-            </p>
+          <div className="flex items-center gap-3">
+            <BrandMark className="h-9 w-9 shrink-0" />
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
+                SmartChattr
+              </p>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Simple AI chat, kept on your device.
+              </p>
+            </div>
           </div>
           <Link
             href="/chat"
@@ -91,7 +95,8 @@ export default function LandingPage() {
 
                 <div className="flex min-w-0 flex-1 flex-col">
                   <div className="flex items-center justify-between border-b border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-                    <div>
+                    <div className="flex items-center gap-3">
+                      <BrandMark className="h-8 w-8 shrink-0" />
                       <p className="text-lg font-bold text-gray-900 dark:text-gray-100">SmartChattr</p>
                     </div>
                     <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500 text-white">

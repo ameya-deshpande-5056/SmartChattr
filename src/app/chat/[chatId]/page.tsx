@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
+import { ChatNotices } from '@/components/ChatNotices';
 import { Header } from '@/components/Header';
 import { ChatSidebar } from '@/components/ChatSidebar';
 import { MessageList } from '@/components/MessageList';
@@ -12,8 +13,12 @@ import { useChats } from '@/hooks/useChats';
 
 export default function ChatByIdPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [draftText, setDraftText] = useState('');
+  const [draftVersion, setDraftVersion] = useState(0);
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const handledAutoSendRef = useRef<string | null>(null);
   const selectedChatId = Array.isArray(params?.chatId)
     ? params.chatId[0]
     : params?.chatId ?? null;
@@ -25,6 +30,7 @@ export default function ChatByIdPage() {
     sendMessage,
     loading,
     error,
+    messagesReady,
     createNewChat: createChatHook,
     deleteChatById,
   } = useChats(selectedChatId);
@@ -32,6 +38,29 @@ export default function ChatByIdPage() {
   const handleCreateChat = async () => {
     const newChatId = await createChatHook();
     router.push(`/chat/${newChatId}`);
+  };
+
+  useEffect(() => {
+    const draft = searchParams.get('draft');
+    if (!draft) return;
+
+    setDraftText(draft);
+    setDraftVersion((current) => current + 1);
+  }, [searchParams]);
+
+  useEffect(() => {
+    const autoSend = searchParams.get('autoSend');
+    if (!autoSend || !selectedChatId || !messagesReady || loading) return;
+    if (handledAutoSendRef.current === autoSend) return;
+
+    handledAutoSendRef.current = autoSend;
+    sendMessage(autoSend);
+    router.replace(`/chat/${selectedChatId}`);
+  }, [loading, messagesReady, router, searchParams, selectedChatId, sendMessage]);
+
+  const applyDraft = (prompt: string) => {
+    setDraftText(prompt);
+    setDraftVersion((current) => current + 1);
   };
 
   return (
@@ -57,10 +86,11 @@ export default function ChatByIdPage() {
       <div className="flex-1 flex flex-col w-full min-h-0">
         <Header onNewChat={handleCreateChat} onMenuClick={() => setSidebarOpen(true)} />
         <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-          <MessageList messages={messages} />
+          <MessageList messages={messages} onStarterPrompt={applyDraft} />
         </div>
         {loading && <TypingIndicator />}
-        <InputBar onSend={sendMessage} loading={loading} />
+        <InputBar onSend={sendMessage} loading={loading} draftText={draftText} draftVersion={draftVersion} />
+        <ChatNotices />
         {error && <ErrorToast message={error} />}
       </div>
     </div>

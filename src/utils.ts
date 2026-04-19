@@ -481,6 +481,22 @@ export function getTheme(): 'light' | 'dark' {
   return hour >= 6 && hour < 18 ? 'light' : 'dark';
 }
 
+export function getMillisecondsUntilNextThemeChange(reference = new Date()): number {
+  const nextChange = new Date(reference);
+  const hour = reference.getHours();
+
+  if (hour < 6) {
+    nextChange.setHours(6, 0, 0, 0);
+  } else if (hour < 18) {
+    nextChange.setHours(18, 0, 0, 0);
+  } else {
+    nextChange.setDate(nextChange.getDate() + 1);
+    nextChange.setHours(6, 0, 0, 0);
+  }
+
+  return Math.max(nextChange.getTime() - reference.getTime(), 1000);
+}
+
 export function getThemeMode(): 'auto' | 'light' | 'dark' {
   if (typeof window === 'undefined') return 'auto';
   const stored = localStorage.getItem('theme');

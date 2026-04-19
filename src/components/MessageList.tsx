@@ -1,12 +1,14 @@
 import { useEffect, useRef } from 'react';
 import { MessageBubble } from './MessageBubble';
+import { StarterPrompts } from './StarterPrompts';
 import type { Message } from '@/types/chat';
 
 interface MessageListProps {
   messages: Message[];
+  onStarterPrompt?: (prompt: string) => void;
 }
 
-export function MessageList({ messages }: MessageListProps) {
+export function MessageList({ messages, onStarterPrompt }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -19,8 +21,12 @@ export function MessageList({ messages }: MessageListProps) {
 
   if (messages.length === 0) {
     return (
-      <div className="flex h-64 items-center justify-center text-gray-500 dark:text-gray-400">
-        No messages yet. Start the conversation!
+      <div className="flex flex-1 items-center justify-center px-4 py-8">
+        {onStarterPrompt ? (
+          <StarterPrompts onSelect={onStarterPrompt} />
+        ) : (
+          <div className="text-gray-500 dark:text-gray-400">No messages yet. Start the conversation!</div>
+        )}
       </div>
     );
   }

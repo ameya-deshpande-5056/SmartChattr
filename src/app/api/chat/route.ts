@@ -19,7 +19,11 @@ export async function POST(request: NextRequest) {
     });
 
     if ('text' in result) {
-      return NextResponse.json({ reply: result.text });
+      return NextResponse.json({
+        reply: result.text,
+        provider: result.provider,
+        model: result.model,
+      });
     }
 
     if (result.error.status === 429) {

@@ -6,6 +6,8 @@ export interface Message {
   content: string;
   chatId: string;
   timestamp?: Date;
+  aiProvider?: string;
+  aiModel?: string;
 }
 
 export interface Chat {

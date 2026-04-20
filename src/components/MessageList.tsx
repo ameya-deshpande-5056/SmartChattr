@@ -43,6 +43,8 @@ export function MessageList({ messages, onStarterPrompt }: MessageListProps) {
             role={message.role}
             content={message.content}
             timestamp={message.timestamp}
+            aiProvider={message.aiProvider}
+            aiModel={message.aiModel}
             extraTopSpacing={extraTopSpacing}
           />
         );

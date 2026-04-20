@@ -55,9 +55,17 @@ export function useChat(chatId?: string | null) {
     setLoading(true);
 
     try {
-      const reply = await callLLM(text, buildHistory(messages));
+      const result = await callLLM(text, buildHistory(messages));
       const assistantId = generateId();
-      const assistantMessage: Message = { id: assistantId, role: 'assistant' as MessageRole, content: reply, chatId, timestamp: new Date() };
+      const assistantMessage: Message = {
+        id: assistantId,
+        role: 'assistant' as MessageRole,
+        content: result.reply,
+        chatId,
+        timestamp: new Date(),
+        aiProvider: result.provider,
+        aiModel: result.model,
+      };
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (err) {
       setError('Failed to get response. Please try again.');

@@ -36,21 +36,27 @@ type ProviderError = {
   text: string;
 };
 
-type ProviderAttempt = () => Promise<{ text: string } | { error: ProviderError } | null>;
+type ProviderSuccess = {
+  text: string;
+  provider: string;
+  model: string;
+};
+
+type ProviderAttempt = () => Promise<ProviderSuccess | { error: ProviderError } | null>;
 
 const GEMINI_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 const GOOGLE_CHAT_MODEL_IDS = [
-  'gemini-3-flash-preview',
-  'gemini-2.5-flash',
-  'gemini-3.1-flash-lite-preview',
-  'gemini-2.5-flash-lite',
   'gemini-flash-latest',
+  'gemini-3-flash-preview',
+  'gemini-3.1-flash-lite-preview',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
 ] as const;
 const GOOGLE_TITLE_MODEL_IDS = [
   'gemini-2.5-flash-lite',
+  'gemini-2.5-flash',
   'gemini-3.1-flash-lite-preview',
   'gemini-3-flash-preview',
-  'gemini-2.5-flash',
   'gemini-flash-latest',
 ] as const;
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
@@ -70,6 +76,7 @@ const OPENROUTER_MODEL_IDS = [
 ] as const;
 const MAX_HISTORY_TURNS = 7;
 const DEFAULT_MAX_CONTEXT_CHARS = 480;
+const MODEL_ID_PATTERN = /^[a-z0-9][a-z0-9._/-]*$/i;
 const LIVE_INFO_PATTERN =
   /\b(current|latest|recent|today|tonight|tomorrow|yesterday|now|live|breaking|news|headline|weather|forecast|temperature|rain|snow|storm|sports|score|match|game|fixture|standing|rankings|stock|market|price|crypto|bitcoin|ethereum|time|date|day|week|month|year|election|result|traffic|prediction|predict|odds|trend|trending)\b/i;
 const DATE_PATTERN =
@@ -97,7 +104,7 @@ function getSystemInstruction(mode: GenerationMode) {
     return 'Create a short chat title from the user prompt. Return only the title. Use 2 to 6 words. No quotes. No punctuation unless essential. Capitalize the first letter.';
   }
 
-  return 'Be accurate, clear, and friendly. Write in plain, natural language for everyday users. Keep answers reasonably concise, but do not sound robotic or overly compressed. Add a little warmth when it helps. Use plain text unless formatting clearly improves clarity. Use live web or code tools only when current or external information is genuinely needed.';
+  return 'Be accurate, clear, and friendly. Write in plain, natural language for everyday users. Keep answers reasonably concise, but complete. Do not stop mid-thought or mid-sentence. Add a little warmth when it helps. Use plain text unless formatting clearly improves clarity. Use live web or code tools only when current or external information is genuinely needed.';
 }
 
 function getProviderLimits(mode: GenerationMode) {
@@ -110,7 +117,7 @@ function getProviderLimits(mode: GenerationMode) {
   }
 
   return {
-    maxOutputTokens: 480,
+    maxOutputTokens: 1024,
     temperature: 0.5,
     topP: 0.8,
   };
@@ -200,7 +207,7 @@ async function tryGoogleProvider(
   message: string,
   history: ChatTurn[],
   mode: GenerationMode,
-): Promise<{ text: string } | { error: ProviderError } | null> {
+): Promise<ProviderSuccess | { error: ProviderError } | null> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
 
@@ -231,8 +238,11 @@ async function tryGoogleProvider(
       }
 
       const data = JSON.parse(bodyText) as GeminiCandidateResponse;
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-      if (text) return { text };
+      const text = data.candidates?.[0]?.content?.parts
+        ?.map((part) => part.text ?? '')
+        .join('')
+        .trim();
+      if (text) return { text, provider: 'google', model };
 
       lastError = { provider: 'google', model, status: 502, text: 'Empty response' };
     } catch (error) {
@@ -247,7 +257,7 @@ async function tryGroqProvider(
   message: string,
   history: ChatTurn[],
   mode: GenerationMode,
-): Promise<{ text: string } | { error: ProviderError } | null> {
+): Promise<ProviderSuccess | { error: ProviderError } | null> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return null;
 
@@ -280,7 +290,7 @@ async function tryGroqProvider(
 
       const data = JSON.parse(bodyText) as OpenAICompatibleResponse;
       const text = extractOpenAICompatibleText(data);
-      if (text) return { text };
+      if (text) return { text, provider: 'groq', model };
 
       lastError = { provider: 'groq', model, status: 502, text: 'Empty response' };
     } catch (error) {
@@ -295,7 +305,7 @@ async function tryOpenRouterProvider(
   message: string,
   history: ChatTurn[],
   mode: GenerationMode,
-): Promise<{ text: string } | { error: ProviderError } | null> {
+): Promise<ProviderSuccess | { error: ProviderError } | null> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return null;
 
@@ -328,7 +338,7 @@ async function tryOpenRouterProvider(
 
       const data = JSON.parse(bodyText) as OpenAICompatibleResponse;
       const text = extractOpenAICompatibleText(data);
-      if (text) return { text };
+      if (text) return { text, provider: 'openrouter', model };
 
       lastError = { provider: 'openrouter', model, status: 502, text: 'Empty response' };
     } catch (error) {
@@ -352,7 +362,7 @@ export async function generateText({
   message,
   history = [],
   mode = 'chat',
-}: GenerateTextOptions): Promise<{ text: string } | { error: ProviderError }> {
+}: GenerateTextOptions): Promise<ProviderSuccess | { error: ProviderError }> {
   const shouldPreferLiveCapability = mode === 'chat' && prefersLiveCapability(message, history);
   const providerAttempts: ProviderAttempt[] = mode === 'title'
     ? [

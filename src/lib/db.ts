@@ -46,6 +46,8 @@ function normalizeMessage(message: Partial<Message> & { role: Message['role']; c
     content: message.content,
     chatId: message.chatId,
     timestamp: message.timestamp ? new Date(message.timestamp) : new Date(),
+    aiProvider: typeof message.aiProvider === 'string' ? message.aiProvider : undefined,
+    aiModel: typeof message.aiModel === 'string' ? message.aiModel : undefined,
   };
 }
 

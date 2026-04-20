@@ -13,6 +13,8 @@ interface MessageBubbleProps {
   role: MessageRole;
   content: string;
   timestamp?: string | Date;
+  aiProvider?: string;
+  aiModel?: string;
   extraTopSpacing?: boolean;
 }
 
@@ -54,7 +56,7 @@ const CodeBlock: FC<CodeBlockProps & { role?: MessageRole }> = ({ inline, classN
   );
 }
 
-export function MessageBubble({ role, content, timestamp, extraTopSpacing }: MessageBubbleProps) {
+export function MessageBubble({ role, content, timestamp, aiProvider, aiModel, extraTopSpacing }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
 
   const formatTimestamp = (value?: string | Date) => {
@@ -65,6 +67,9 @@ export function MessageBubble({ role, content, timestamp, extraTopSpacing }: Mes
   };
 
   const timeString = formatTimestamp(timestamp);
+  const aiLabel = role === 'assistant'
+    ? [aiProvider, aiModel].filter(Boolean).join(' · ')
+    : '';
 
   const handleCopyMessage = async () => {
     await navigator.clipboard.writeText(content);
@@ -125,14 +130,25 @@ export function MessageBubble({ role, content, timestamp, extraTopSpacing }: Mes
         >
           {content}
         </ReactMarkdown>
-        <div className="flex items-end justify-end gap-2 mt-2">
-          <div className={cn(
-            'text-[11px] tracking-[0.08em]',
-            role === 'user' ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'
-          )}>
-            {timeString}
+        {role === 'assistant' ? (
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <div className="text-[11px] tracking-[0.08em] text-slate-500 dark:text-slate-400">
+              {aiLabel ? `AI · ${aiLabel}` : 'AI'}
+            </div>
+            <div className="text-[11px] tracking-[0.08em] text-slate-500 dark:text-slate-400">
+              {timeString}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="mt-2 flex items-end justify-end gap-2">
+            <div className={cn(
+              'text-[11px] tracking-[0.08em]',
+              role === 'user' ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'
+            )}>
+              {timeString}
+            </div>
+          </div>
+        )}
       </div>
       {role === 'assistant' && (
         <div className="flex justify-end mt-1 min-[1168px]:justify-center">

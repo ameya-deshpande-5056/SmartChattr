@@ -3,7 +3,13 @@ export interface ChatTurn {
   content: string;
 }
 
-export async function callLLM(prompt: string, history: ChatTurn[] = []): Promise<string> {
+export interface LLMReply {
+  reply: string;
+  provider?: string;
+  model?: string;
+}
+
+export async function callLLM(prompt: string, history: ChatTurn[] = []): Promise<LLMReply> {
   const response = await fetch('/api/chat', {
     method: 'POST',
     headers: {
@@ -16,8 +22,12 @@ export async function callLLM(prompt: string, history: ChatTurn[] = []): Promise
     throw new Error(`LLM API error: ${response.status}`);
   }
 
-  const data = await response.json();
-  return data.reply || '';
+  const data = await response.json() as LLMReply;
+  return {
+    reply: data.reply || '',
+    provider: data.provider,
+    model: data.model,
+  };
 }
 
 export async function generateChatTitle(prompt: string): Promise<string> {

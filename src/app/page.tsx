@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { BrandMark } from '@/components/BrandMark';
+import { LandingFooter } from '@/components/LandingFooter';
 
 const features = [
   'Persistent local chat history',
@@ -140,6 +141,8 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
+
+        <LandingFooter />
       </div>
     </main>
   );

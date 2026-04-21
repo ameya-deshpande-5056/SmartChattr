@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Menu, Plus } from 'lucide-react';
 import { BrandMark } from '@/components/BrandMark';
 
@@ -19,10 +20,10 @@ export function Header({ onNewChat, onMenuClick }: HeaderProps) {
             <Menu className="h-5 w-5" />
           </button>
         )}
-        <div className="flex items-center gap-3">
+        <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
           <BrandMark className="h-8 w-8 shrink-0" />
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">SmartChattr</h1>
-        </div>
+        </Link>
       </div>
       <button
         onClick={onNewChat}

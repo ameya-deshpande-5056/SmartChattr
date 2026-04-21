@@ -69,23 +69,23 @@ export default function LandingPage() {
               SmartChattr keeps the experience focused: write, ask, save, return later. Your chats stay local, the interface stays clean, and the app stays out of the way.
             </p>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-8 grid gap-3 grid-cols-[auto_1fr]">
               <Link
                 href="/chat"
                 className="inline-flex items-center justify-center rounded-full bg-blue-500 px-6 py-3 text-base font-medium text-white transition-colors hover:bg-blue-600"
               >
                 Start chatting
               </Link>
-              <div className={`inline-flex items-center rounded-full border border-gray-300 bg-white px-5 py-3 text-sm ${effectiveTheme === 'dark' ? 'border-gray-700 bg-gray-800 text-gray-300' : 'text-gray-600'}`}>
+              <div className={`inline-flex items-center rounded-full border px-5 py-3 text-sm ${effectiveTheme === 'dark' ? 'border-gray-700 bg-gray-800 text-gray-300' : 'border-gray-300 bg-white text-gray-600'}`}>
                 Local-first, exportable, and easy to keep around.
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3 lg:grid-cols-2">
+            <div className="mt-5 grid gap-3 grid-cols-2">
               {features.map((feature) => (
                 <div
                   key={feature}
-                  className={`rounded-2xl border bg-white px-4 py-4 text-sm leading-6 ${effectiveTheme === 'dark' ? 'border-gray-700 bg-gray-800 text-gray-200' : 'border-gray-200 text-gray-700'}`}
+                  className={`rounded-2xl border px-4 py-4 text-sm leading-6 ${effectiveTheme === 'dark' ? 'border-gray-700 bg-gray-800 text-gray-200' : 'border-gray-200 bg-white text-gray-700'}`}
                 >
                   {feature}
                 </div>

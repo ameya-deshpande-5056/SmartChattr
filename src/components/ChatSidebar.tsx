@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { cn, downloadFile, buildAllChatsPrintableHtml, buildChatText, buildPrintableHtml, openPrintPreview, getThemeMode, setTheme } from '@/utils';
 import type { ChatPreview } from '@/types/chat';
-import { Trash2, X, Settings, Download, Package, Sun, Moon, Zap, Upload, Database } from 'lucide-react';
+import { Trash2, X, Settings, Download, Package, Sun, Moon, Zap, Upload, Database, Search } from 'lucide-react';
 import { exportDatabaseBackup, importDatabaseBackup, loadMessages, loadMessagesByChat } from '@/lib/db';
 
 interface ChatSidebarProps {
@@ -23,6 +23,9 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [themeMode, setThemeModeState] = useState<'auto' | 'light' | 'dark'>(getThemeMode);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredChats, setFilteredChats] = useState<ChatPreview[]>(chats);
+  const [isSearching, setIsSearching] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   const handleThemeChange = (mode: 'auto' | 'light' | 'dark') => {
@@ -43,6 +46,59 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
     const timer = window.setTimeout(() => setErrorMessage(null), 5000);
     return () => window.clearTimeout(timer);
   }, [errorMessage]);
+
+  useEffect(() => {
+    setFilteredChats(chats);
+  }, [chats]);
+
+  useEffect(() => {
+    const performSearch = async () => {
+      if (!searchQuery.trim()) {
+        setFilteredChats(chats);
+        setIsSearching(false);
+        return;
+      }
+
+      setIsSearching(true);
+      const query = searchQuery.toLowerCase();
+
+      try {
+        // Search through chat titles first
+        const titleMatches = chats.filter(chat =>
+          chat.title.toLowerCase().includes(query)
+        );
+
+        // Search through chat messages
+        const messageMatches: ChatPreview[] = [];
+        for (const chat of chats) {
+          if (titleMatches.includes(chat)) continue; // Skip if already matched by title
+
+          const messages = await loadMessagesByChat(chat.id);
+          const hasMatchingMessage = messages.some(msg =>
+            msg.content.toLowerCase().includes(query)
+          );
+
+          if (hasMatchingMessage) {
+            messageMatches.push(chat);
+          }
+        }
+
+        // Combine results and sort by recency
+        const allMatches = [...titleMatches, ...messageMatches]
+          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+        setFilteredChats(allMatches);
+      } catch (error) {
+        console.error('Search error:', error);
+        setFilteredChats(chats);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(performSearch, 300);
+    return () => clearTimeout(debounceTimer);
+  }, [searchQuery, chats]);
 
   const getChatById = (chatId: string) => chats.find((chat) => chat.id === chatId);
 
@@ -157,7 +213,7 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
 
   return (
     <div className={cn(
-      "w-80 bg-gray-50 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col",
+      "w-80 bg-gray-50 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col overflow-x-hidden",
       className
     )}>
       {successMessage && (
@@ -185,146 +241,184 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
         </div>
       )}
       {/* Header */}
-      <div className="p-4 border-b bg-white dark:bg-gray-800 flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Chats</h2>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Tap a chat to open or start a new one.</p>
+      <div className="border-b bg-white dark:bg-gray-800">
+        <div className="p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Chats</h2>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Tap a chat to open or start a new one.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                aria-label="Settings"
+              >
+                <Settings className="h-4 w-4" />
+              </button>
+              {onClose && (
+                <button
+                  onClick={onClose}
+                  className="min-[1168px]:hidden inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  aria-label="Close sidebar"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            aria-label="Settings"
-          >
-            <Settings className="h-4 w-4" />
-          </button>
-          {onClose && (
-            <button
-              onClick={onClose}
-              className="min-[1168px]:hidden inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              aria-label="Close sidebar"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
+        {isSettingsOpen && (
+          <div className="p-4 border-t bg-white dark:bg-gray-800 space-y-3">
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Export</label>
+              <div className="flex gap-2 items-center">
+                <select
+                  value={exportFormat}
+                  onChange={(e) => setExportFormat(e.target.value as 'txt' | 'pdf')}
+                  className="flex-1 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                  aria-label="Export format"
+                >
+                  <option value="pdf">PDF</option>
+                  <option value="txt">TXT</option>
+                </select>
+                <button
+                  onClick={exportCurrentChat}
+                  disabled={!currentChatId || isExporting}
+                  aria-label="Export current chat"
+                  title="Export current chat"
+                  className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-slate-800 text-white hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Download className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={exportAllChats}
+                  disabled={chats.length === 0 || isExporting}
+                  aria-label="Export all chats"
+                  title="Export all chats"
+                  className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Package className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Backup</label>
+              <div className="flex gap-2 items-center">
+                <button
+                  onClick={exportDatabase}
+                  disabled={isExporting}
+                  aria-label="Export full backup"
+                  title="Export full backup"
+                  className="flex-1 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-slate-800 px-3 text-sm font-medium text-white hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Database className="h-4 w-4" />
+                  Export DB
+                </button>
+                <button
+                  onClick={() => importInputRef.current?.click()}
+                  disabled={isExporting}
+                  aria-label="Import full backup"
+                  title="Import full backup"
+                  className="flex-1 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Upload className="h-4 w-4" />
+                  Import DB
+                </button>
+                <input
+                  ref={importInputRef}
+                  type="file"
+                  accept="application/json,.json"
+                  className="hidden"
+                  onChange={importDatabase}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Theme</label>
+              <div className="flex gap-2 justify-between">
+                <button
+                  onClick={() => handleThemeChange('auto')}
+                  aria-label="Auto theme (system)"
+                  title="Auto theme (system)"
+                  className={cn(
+                    "flex-1 inline-flex h-10 items-center justify-center rounded-lg transition-colors",
+                    themeMode === 'auto'
+                      ? "bg-blue-500 text-white"
+                      : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                  )}
+                >
+                  <Zap className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={() => handleThemeChange('light')}
+                  aria-label="Light theme"
+                  title="Light theme"
+                  className={cn(
+                    "flex-1 inline-flex h-10 items-center justify-center rounded-lg transition-colors",
+                    themeMode === 'light'
+                      ? "bg-blue-500 text-white"
+                      : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                  )}
+                >
+                  <Sun className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={() => handleThemeChange('dark')}
+                  aria-label="Dark theme"
+                  title="Dark theme"
+                  className={cn(
+                    "flex-1 inline-flex h-10 items-center justify-center rounded-lg transition-colors",
+                    themeMode === 'dark'
+                      ? "bg-blue-500 text-white"
+                      : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                  )}
+                >
+                  <Moon className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        <div className="p-4 border-t">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search chats..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border border-gray-200 bg-gray-50 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                aria-label="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
-      {isSettingsOpen && (
-        <div className="p-4 border-b bg-white dark:bg-gray-800 space-y-3">
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Export</label>
-            <div className="flex gap-2 items-center">
-              <select
-                value={exportFormat}
-                onChange={(e) => setExportFormat(e.target.value as 'txt' | 'pdf')}
-                className="flex-1 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                aria-label="Export format"
-              >
-                <option value="pdf">PDF</option>
-                <option value="txt">TXT</option>
-              </select>
-              <button
-                onClick={exportCurrentChat}
-                disabled={!currentChatId || isExporting}
-                aria-label="Export current chat"
-                title="Export current chat"
-                className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-slate-800 text-white hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <Download className="h-5 w-5" />
-              </button>
-              <button
-                onClick={exportAllChats}
-                disabled={chats.length === 0 || isExporting}
-                aria-label="Export all chats"
-                title="Export all chats"
-                className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <Package className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Backup</label>
-            <div className="flex gap-2 items-center">
-              <button
-                onClick={exportDatabase}
-                disabled={isExporting}
-                aria-label="Export full backup"
-                title="Export full backup"
-                className="flex-1 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-slate-800 px-3 text-sm font-medium text-white hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <Database className="h-4 w-4" />
-                Export DB
-              </button>
-              <button
-                onClick={() => importInputRef.current?.click()}
-                disabled={isExporting}
-                aria-label="Import full backup"
-                title="Import full backup"
-                className="flex-1 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <Upload className="h-4 w-4" />
-                Import DB
-              </button>
-              <input
-                ref={importInputRef}
-                type="file"
-                accept="application/json,.json"
-                className="hidden"
-                onChange={importDatabase}
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Theme</label>
-            <div className="flex gap-2 justify-between">
-              <button
-                onClick={() => handleThemeChange('auto')}
-                aria-label="Auto theme (system)"
-                title="Auto theme (system)"
-                className={cn(
-                  "flex-1 inline-flex h-10 items-center justify-center rounded-lg transition-colors",
-                  themeMode === 'auto'
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
-                )}
-              >
-                <Zap className="h-5 w-5" />
-              </button>
-              <button
-                onClick={() => handleThemeChange('light')}
-                aria-label="Light theme"
-                title="Light theme"
-                className={cn(
-                  "flex-1 inline-flex h-10 items-center justify-center rounded-lg transition-colors",
-                  themeMode === 'light'
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
-                )}
-              >
-                <Sun className="h-5 w-5" />
-              </button>
-              <button
-                onClick={() => handleThemeChange('dark')}
-                aria-label="Dark theme"
-                title="Dark theme"
-                className={cn(
-                  "flex-1 inline-flex h-10 items-center justify-center rounded-lg transition-colors",
-                  themeMode === 'dark'
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
-                )}
-              >
-                <Moon className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Chat list */}
       <div className="flex-1 overflow-auto p-2 space-y-1">
-        {chats.map((chat) => (
+        {isSearching ? (
+          <div className="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
+            Searching...
+          </div>
+        ) : filteredChats.length === 0 && searchQuery ? (
+          <div className="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
+            No chats found matching "{searchQuery}"
+          </div>
+        ) : filteredChats.length === 0 ? (
+          <div className="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
+            No chats yet. Start a new conversation!
+          </div>
+        ) : (
+          filteredChats.map((chat) => (
           <Link
             key={chat.id}
             href={`/chat/${chat.id}`}
@@ -359,7 +453,8 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
               <Trash2 className="w-4 h-4" />
             </button>
           </Link>
-        ))}
+          ))
+        )}
       </div>
     </div>
   );

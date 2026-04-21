@@ -4,6 +4,7 @@ import { LandingFooter } from '@/components/LandingFooter';
 
 const features = [
   'Persistent local chat history',
+  'Full-text search across all chats',
   'Markdown with math/LaTeX support',
   'PDF export and full backup support',
 ];

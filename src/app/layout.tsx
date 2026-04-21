@@ -20,8 +20,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className="antialiased">
+    <html lang="en" suppressHydrationWarning className="overflow-x-hidden">
+      <body className="antialiased overflow-x-hidden">
         <Script id="theme-init" strategy="beforeInteractive">{`
           (function() {
             try {

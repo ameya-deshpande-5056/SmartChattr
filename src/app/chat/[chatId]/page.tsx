@@ -64,7 +64,7 @@ export default function ChatByIdPage() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="flex h-screen bg-gray-50 dark:bg-gray-900 overflow-x-hidden max-w-[100vw]">
       <div className="hidden min-[1168px]:flex min-[1168px]:w-80 min-[1168px]:flex-shrink-0">
         <ChatSidebar
           chats={chats}
@@ -83,9 +83,9 @@ export default function ChatByIdPage() {
           onClose={() => setSidebarOpen(false)}
         />
       </div>
-      <div className="flex-1 flex flex-col w-full min-h-0">
+      <div className="flex-1 flex flex-col w-full min-h-0 overflow-x-hidden min-w-0">
         <Header onNewChat={handleCreateChat} onMenuClick={() => setSidebarOpen(true)} />
-        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col overflow-x-hidden min-w-0">
           <MessageList messages={messages} onStarterPrompt={applyDraft} />
         </div>
         {loading && <TypingIndicator />}

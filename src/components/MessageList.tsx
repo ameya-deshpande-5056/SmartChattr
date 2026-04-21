@@ -32,7 +32,7 @@ export function MessageList({ messages, onStarterPrompt }: MessageListProps) {
   }
 
   return (
-    <div className="flex-1 h-full min-h-0 overflow-y-auto p-4 space-y-5">
+    <div className="flex-1 h-full min-h-0 overflow-y-auto overflow-x-hidden p-4 space-y-5 max-w-full w-full">
       {messages.map((message, index) => {
         const previousMessage = index > 0 ? messages[index - 1] : null;
         const extraTopSpacing = previousMessage?.role === 'assistant' && message.role === 'user';

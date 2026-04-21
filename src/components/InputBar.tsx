@@ -45,7 +45,7 @@ export function InputBar({ onSend, loading, draftText, draftVersion }: InputBarP
   };
 
   return (
-    <div className="border-t border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+    <div className="border-t border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800 overflow-x-hidden">
       <div className="mx-auto flex w-full items-end gap-3 min-[1168px]:w-[80%]">
         <textarea
           ref={textareaRef}

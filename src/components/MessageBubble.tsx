@@ -45,7 +45,7 @@ const CodeBlock: FC<CodeBlockProps & { role?: MessageRole }> = ({ inline, classN
   const isInline = !className || !/language-/.test(className);
 
   if (isInline) {
-    return <code className={cn("rounded px-1 py-0.5 text-sm font-mono", isUser ? 'bg-slate-600 text-slate-100' : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100')}>{code}</code>;
+    return <code className={cn("rounded px-1 py-0.5 text-sm font-mono break-word", isUser ? 'bg-slate-600 text-slate-100' : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100')}>{code}</code>;
   }
 
   const handleCopy = async () => {
@@ -55,7 +55,7 @@ const CodeBlock: FC<CodeBlockProps & { role?: MessageRole }> = ({ inline, classN
   };
 
   return (
-    <div className={cn("my-4 overflow-hidden rounded-2xl border", isUser ? 'border-slate-600 bg-slate-700' : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900')}>
+    <div className={cn("my-4 overflow-hidden rounded-2xl border max-w-full min-w-0", isUser ? 'border-slate-600 bg-slate-700' : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900')}>
       <div className={cn("flex items-center justify-between border-b px-4 py-2", isUser ? 'border-slate-600 bg-slate-600' : 'border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800')}>
         <span className={cn("text-xs uppercase tracking-[0.2em]", isUser ? 'text-slate-300' : 'text-slate-500 dark:text-slate-400')}>{language}</span>
         <button
@@ -65,7 +65,7 @@ const CodeBlock: FC<CodeBlockProps & { role?: MessageRole }> = ({ inline, classN
           {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
-      <pre className={cn("max-h-96 overflow-auto p-4 text-xs leading-6", isUser ? 'text-slate-100' : 'text-slate-900 dark:text-slate-100')}><code>{code}</code></pre>
+      <pre className={cn("max-h-96 overflow-x-auto p-4 text-xs leading-6 w-full max-w-full min-w-0", isUser ? 'text-slate-100' : 'text-slate-900 dark:text-slate-100')}><code className="block whitespace-pre">{code}</code></pre>
     </div>
   );
 }
@@ -94,19 +94,20 @@ export function MessageBubble({ role, content, timestamp, aiProvider, aiModel, e
   return (
     <div className={cn(
       role === 'user'
-        ? `flex justify-end${extraTopSpacing ? ' mt-8' : ''}`
-        : `flex flex-col${extraTopSpacing ? ' mt-8' : ''}`
+        ? `flex justify-end overflow-x-hidden${extraTopSpacing ? ' mt-8' : ''}`
+        : `flex flex-col overflow-x-hidden${extraTopSpacing ? ' mt-8' : ''}`
     )}>
       <div className={cn(
         role === 'user'
-          ? 'max-w-[80%] sm:max-w-[70%]'
+          ? 'max-w-[80%] sm:max-w-[60%]'
           : 'w-full min-[1168px]:w-[80%] self-start min-[1168px]:self-center',
-        'px-4 py-3 rounded-3xl text-sm prose prose-sm prose-headings:text-inherit group relative',
+        'px-4 py-3 rounded-3xl text-sm prose prose-sm prose-headings:text-inherit group relative overflow-hidden min-w-0',
         role === 'user'
           ? 'bg-blue-500 text-white rounded-br-sm prose-light min-[1168px]:mr-[10%]'
           : 'bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-bl-sm'
       )}>
-        <ReactMarkdown
+        <div className="prose prose-sm break-words min-w-0">
+          <ReactMarkdown
           remarkPlugins={[remarkGfm, remarkBreaks, [remarkMath, { singleDollarTextIgnore: false }]]}
           rehypePlugins={[rehypeKatex]}
           components={{
@@ -123,8 +124,8 @@ export function MessageBubble({ role, content, timestamp, aiProvider, aiModel, e
               <blockquote className={cn("mt-3 mb-0 first:mt-0 last:mb-0 border-l-4 pl-4 italic", role === 'user' ? 'border-white/30 text-white/80' : 'border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-300')}>{children}</blockquote>
             ),
             table: ({ children }) => (
-              <div className="my-4 overflow-x-auto">
-                <table className={cn("min-w-full border-collapse text-sm", role === 'user' ? 'text-white' : 'text-slate-800 dark:text-slate-200')}>{children}</table>
+              <div className="my-4 overflow-x-auto min-w-0">
+                <table className={cn("w-full border-collapse text-sm", role === 'user' ? 'text-white' : 'text-slate-800 dark:text-slate-200')}>{children}</table>
               </div>
             ),
             thead: ({ children }) => <thead className={role === 'user' ? 'bg-white/10' : 'bg-slate-100 dark:bg-slate-700/70'}>{children}</thead>,
@@ -145,6 +146,7 @@ export function MessageBubble({ role, content, timestamp, aiProvider, aiModel, e
         >
           {preprocessMath(content)}
         </ReactMarkdown>
+        </div>
         {role === 'assistant' ? (
           <div className="mt-2 flex items-center justify-between gap-2">
             <div className="text-[11px] tracking-[0.08em] text-slate-500 dark:text-slate-400">

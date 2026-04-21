@@ -8,7 +8,7 @@ interface HeaderProps {
 
 export function Header({ onNewChat, onMenuClick }: HeaderProps) {
   return (
-    <div className="flex items-center justify-between p-4 border-b bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+    <div className="flex items-center justify-between p-4 border-b bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 overflow-x-hidden">
       <div className="flex items-center gap-3">
         {onMenuClick && (
           <button

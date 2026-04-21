@@ -75,7 +75,7 @@ const OPENROUTER_MODEL_IDS = [
   'openrouter/free',
 ] as const;
 const MAX_HISTORY_TURNS = 8;
-const DEFAULT_MAX_CONTEXT_CHARS = 768;
+const DEFAULT_MAX_CONTEXT_CHARS = 2048;
 const LIVE_INFO_PATTERN =
   /\b(current|latest|recent|today|tonight|tomorrow|yesterday|now|live|breaking|news|headline|weather|forecast|temperature|rain|snow|storm|sports|score|match|game|fixture|standing|rankings|stock|market|price|crypto|bitcoin|ethereum|time|date|day|week|month|year|election|result|traffic|prediction|predict|odds|trend|trending)\b/i;
 const DATE_PATTERN =
@@ -116,7 +116,7 @@ function getProviderLimits(mode: GenerationMode) {
   }
 
   return {
-    maxOutputTokens: DEFAULT_MAX_CONTEXT_CHARS,
+    maxOutputTokens: 512,
     temperature: 0.4,
     topP: 0.8,
   };
@@ -151,6 +151,12 @@ function getGroqModelIds(mode: GenerationMode) {
   return mode === 'title' ? GROQ_TITLE_MODEL_IDS : GROQ_CHAT_MODEL_IDS;
 }
 
+function getMessageLimit(message: string) {
+  if (message.length < 256) return 512;
+  if (message.length < 1024) return 1024;
+  return 1536;
+}
+
 function buildGeminiContents(message: string, history: ChatTurn[]) {
   const cleanedHistory = history
     .filter((turn): turn is ChatTurn => Boolean(turn.role && turn.content.trim()))
@@ -164,7 +170,7 @@ function buildGeminiContents(message: string, history: ChatTurn[]) {
     ...cleanedHistory,
     {
       role: 'user',
-      parts: [{ text: compactText(message, 500) }],
+      parts: [{ text: compactText(message, getMessageLimit(message)) }],
     },
   ];
 }
@@ -181,7 +187,7 @@ function buildOpenAICompatibleMessages(message: string, history: ChatTurn[], mod
   return [
     { role: 'system', content: getSystemInstruction(mode) },
     ...cleanedHistory,
-    { role: 'user', content: compactText(message, 500) },
+    { role: 'user', content: compactText(message, getMessageLimit(message)) },
   ];
 }
 

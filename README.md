@@ -15,10 +15,12 @@ A local-first AI chat app built with Next.js, TypeScript, Dexie, and multiple LL
 - Multi-chat interface with route-based chat navigation
 - Guided starter prompts for faster first messages
 - Local IndexedDB persistence with refresh-safe chat history
+- Full-text search across all chats (titles and message content)
 - AI provider fallback chain for chat responses
 - Context-aware routing for live/current-info prompts
 - AI-generated chat titles from the first prompt
 - Markdown rendering in chat with code blocks, tables, task lists, and copy actions
+- Horizontal scroll for code blocks and tables on mobile
 - PDF and TXT export for single chats and all chats
 - Full local database backup export/import as JSON
 - Dark, light, and auto theme modes

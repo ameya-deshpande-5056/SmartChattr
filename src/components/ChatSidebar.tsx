@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { cn, downloadFile, buildAllChatsPrintableHtml, buildChatText, buildPrintableHtml, openPrintPreview, getThemeMode, setTheme } from '@/utils';
 import type { ChatPreview } from '@/types/chat';
-import { Trash2, X, Settings, Download, Package, Sun, Moon, Zap, Upload, Database, Search } from 'lucide-react';
+import { Trash2, X, Settings, Download, Package, Sun, Moon, Zap, Upload, Database, Search, MoreVertical, FileText, Printer } from 'lucide-react';
 import { exportDatabaseBackup, importDatabaseBackup, loadMessages, loadMessagesByChat } from '@/lib/db';
 
 interface ChatSidebarProps {
@@ -17,7 +17,6 @@ interface ChatSidebarProps {
 }
 
 export function ChatSidebar({ className, chats, currentChatId, createNewChat, deleteChat, onClose }: ChatSidebarProps) {
-  const [exportFormat, setExportFormat] = useState<'pdf' | 'txt'>('pdf');
   const [isExporting, setIsExporting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -27,6 +26,31 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
   const [filteredChats, setFilteredChats] = useState<ChatPreview[]>(chats);
   const [isSearching, setIsSearching] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
+  const [menuChatId, setMenuChatId] = useState<string | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const chatListRef = useRef<HTMLDivElement>(null);
+
+  const handleClickOutside = useCallback((event: MouseEvent) => {
+    const target = event.target as HTMLElement;
+    if (menuRef.current && !menuRef.current.contains(target) && !target.closest('[data-menu-trigger="true"]')) {
+      setMenuChatId(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (menuChatId) {
+      document.addEventListener('mousedown', handleClickOutside);
+      // Close menu on scroll so it doesn't float away from its anchor
+      const scrollContainer = chatListRef.current;
+      const handleScroll = () => setMenuChatId(null);
+      scrollContainer?.addEventListener('scroll', handleScroll, { passive: true });
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        scrollContainer?.removeEventListener('scroll', handleScroll);
+      };
+    }
+  }, [menuChatId, handleClickOutside]);
 
   const handleThemeChange = (mode: 'auto' | 'light' | 'dark') => {
     setTheme(mode);
@@ -35,14 +59,12 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
 
   useEffect(() => {
     if (!successMessage) return;
-
     const timer = window.setTimeout(() => setSuccessMessage(null), 4000);
     return () => window.clearTimeout(timer);
   }, [successMessage]);
 
   useEffect(() => {
     if (!errorMessage) return;
-
     const timer = window.setTimeout(() => setErrorMessage(null), 5000);
     return () => window.clearTimeout(timer);
   }, [errorMessage]);
@@ -63,15 +85,13 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
       const query = searchQuery.toLowerCase();
 
       try {
-        // Search through chat titles first
         const titleMatches = chats.filter(chat =>
           chat.title.toLowerCase().includes(query)
         );
 
-        // Search through chat messages
         const messageMatches: ChatPreview[] = [];
         for (const chat of chats) {
-          if (titleMatches.includes(chat)) continue; // Skip if already matched by title
+          if (titleMatches.includes(chat)) continue;
 
           const messages = await loadMessagesByChat(chat.id);
           const hasMatchingMessage = messages.some(msg =>
@@ -83,7 +103,6 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
           }
         }
 
-        // Combine results and sort by recency
         const allMatches = [...titleMatches, ...messageMatches]
           .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
@@ -102,22 +121,22 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
 
   const getChatById = (chatId: string) => chats.find((chat) => chat.id === chatId);
 
-  const exportCurrentChat = async () => {
-    if (!currentChatId) return;
-    const chat = getChatById(currentChatId);
-    if (!chat) return;
-
+  const handleExport = async (chat: ChatPreview, format: 'pdf' | 'txt') => {
     setIsExporting(true);
     try {
-      const messages = await loadMessagesByChat(currentChatId);
-      await dispatchExportSingle(chat, messages, exportFormat, `${chat.title || 'chat'}.${exportFormat}`);
-      setSuccessMessage('Export completed successfully!');
+      const messages = await loadMessagesByChat(chat.id);
+      await dispatchExportSingle(chat, messages, format, `${chat.title || 'chat'}.${format}`);
+      setSuccessMessage(`${format.toUpperCase()} export completed successfully!`);
+      setMenuChatId(null);
+      setMenuPosition(null);
+    } catch (error) {
+      setErrorMessage('Export failed. Please try again.');
     } finally {
       setIsExporting(false);
     }
   };
 
-  const exportAllChats = async () => {
+  const exportAllChats = async (format: 'pdf' | 'txt') => {
     setIsExporting(true);
     try {
       const allMessages = await loadMessages();
@@ -125,8 +144,8 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
         chat,
         messages: allMessages.filter((message) => message.chatId === chat.id),
       }));
-      await dispatchExportAll(messagesByChat, exportFormat);
-      setSuccessMessage('All chats exported successfully!');
+      await dispatchExportAll(messagesByChat, format);
+      setSuccessMessage(`All chats exported as ${format.toUpperCase()}!`);
     } finally {
       setIsExporting(false);
     }
@@ -271,34 +290,23 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
         {isSettingsOpen && (
           <div className="p-4 border-t bg-white dark:bg-gray-800 space-y-3">
             <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Export</label>
-              <div className="flex gap-2 items-center">
-                <select
-                  value={exportFormat}
-                  onChange={(e) => setExportFormat(e.target.value as 'txt' | 'pdf')}
-                  className="flex-1 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                  aria-label="Export format"
-                >
-                  <option value="pdf">PDF</option>
-                  <option value="txt">TXT</option>
-                </select>
+              <label className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Export All</label>
+              <div className="flex gap-2">
                 <button
-                  onClick={exportCurrentChat}
-                  disabled={!currentChatId || isExporting}
-                  aria-label="Export current chat"
-                  title="Export current chat"
-                  className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-slate-800 text-white hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  onClick={() => exportAllChats('pdf')}
+                  disabled={chats.length === 0 || isExporting}
+                  className="flex-1 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
                 >
-                  <Download className="h-5 w-5" />
+                  <Printer className="h-4 w-4" />
+                  PDF
                 </button>
                 <button
-                  onClick={exportAllChats}
+                  onClick={() => exportAllChats('txt')}
                   disabled={chats.length === 0 || isExporting}
-                  aria-label="Export all chats"
-                  title="Export all chats"
-                  className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="flex-1 inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-slate-800 text-white hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
                 >
-                  <Package className="h-5 w-5" />
+                  <FileText className="h-4 w-4" />
+                  TXT
                 </button>
               </div>
             </div>
@@ -404,7 +412,7 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
       </div>
 
       {/* Chat list */}
-      <div className="flex-1 overflow-auto p-2 space-y-1">
+      <div ref={chatListRef} className="flex-1 overflow-auto p-2 space-y-1">
         {isSearching ? (
           <div className="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
             Searching...
@@ -419,44 +427,98 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
           </div>
         ) : (
           filteredChats.map((chat) => (
-          <Link
-            key={chat.id}
-            href={`/chat/${chat.id}`}
-            className={cn(
-              "w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors group",
-              currentChatId === chat.id
-                ? "bg-blue-50 dark:bg-blue-900 border-2 border-blue-200 dark:border-blue-700 text-blue-900 dark:text-blue-100"
-                : "text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm border border-transparent"
-            )}
-          >
-            <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded flex items-center justify-center text-white text-xs font-medium">
-              {chat.title.slice(0, 2).toUpperCase()}
+            <div key={chat.id}>
+              <Link
+                href={`/chat/${chat.id}`}
+                title={`${chat.title || 'New Chat'}\nUpdated On: ${new Date(chat.updatedAt).toLocaleDateString()}`}
+                className={cn(
+                  "w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors group",
+                  currentChatId === chat.id
+                    ? "bg-blue-50 dark:bg-blue-900 border-2 border-blue-200 dark:border-blue-700 text-blue-900 dark:text-blue-100"
+                    : "text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 hover:shadow-sm border border-transparent"
+                )}
+              >
+                <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-600 rounded flex items-center justify-center text-white text-xs font-medium">
+                  {chat.title.slice(0, 2).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate">{chat.title || 'New Chat'}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{chat.preview}</p>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (menuChatId === chat.id) {
+                      setMenuChatId(null);
+                      setMenuPosition(null);
+                    } else {
+                      const btn = e.currentTarget;
+                      const rect = btn.getBoundingClientRect();
+                      setMenuPosition({ top: rect.bottom + 4, left: rect.right - 208 });
+                      setMenuChatId(chat.id);
+                    }
+                  }}
+                  className={`flex h-8 w-8 items-center justify-center rounded-full opacity-50 group-hover:opacity-100 text-gray-500 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 transition-all duration-200 ${menuChatId === chat.id ? 'rotate-90 opacity-100 bg-gray-100 dark:bg-gray-700 scale-105' : ''} ml-auto`}
+                  aria-label="Chat options"
+                  data-menu-trigger="true"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </button>
+              </Link>
+              {menuChatId === chat.id && menuPosition && (
+                <div
+                  ref={menuRef}
+                  className="fixed z-[9999] w-52 rounded-xl bg-white/95 backdrop-blur-sm shadow-2xl border border-gray-100/50 ring-1 ring-black/10 dark:bg-gray-800/95 dark:border-gray-700/50 dark:shadow-2xl dark:ring-gray-900/20 origin-top-right"
+                  style={{ top: menuPosition.top, left: Math.max(4, menuPosition.left) }}
+                >
+                  <div className="px-4 py-2.5 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                    Updated: {new Date(chat.updatedAt).toLocaleDateString()}
+                  </div>
+                  <div className="p-1.5 border-b border-gray-200 dark:border-gray-700">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleExport(chat, 'pdf');
+                      }}
+                      disabled={isExporting}
+                      className="w-full px-3 py-2 rounded-lg text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+                    >
+                      <Printer className="h-4 w-4 text-blue-500" />
+                      Export to PDF
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleExport(chat, 'txt');
+                      }}
+                      disabled={isExporting}
+                      className="w-full px-3 py-2 rounded-lg text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+                    >
+                      <FileText className="h-4 w-4 text-slate-500" />
+                      Export to TXT
+                    </button>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm('Are you sure you want to delete this chat?')) {
+                        deleteChat(chat.id);
+                        setMenuChatId(null);
+                        setMenuPosition(null);
+                      }
+                    }}
+                    className="w-full px-4 py-2.5 rounded-b-xl text-left text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/50 transition-colors flex items-center gap-2"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete chat
+                  </button>
+                </div>
+              )}
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="font-medium truncate">{chat.title || 'New Chat'}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{chat.preview}</p>
-            </div>
-            <div className="text-xs opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 dark:text-gray-500 ml-auto">
-              {new Date(chat.updatedAt).toLocaleDateString()}
-            </div>
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (window.confirm('Are you sure you want to delete this chat?')) {
-                  deleteChat(chat.id);
-                }
-              }}
-              className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 ml-2"
-              aria-label="Delete chat"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </Link>
           ))
         )}
       </div>
     </div>
   );
 }
-

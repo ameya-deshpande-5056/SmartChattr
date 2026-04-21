@@ -12,6 +12,20 @@ function sanitizeTitle(rawTitle: string) {
   return cleaned.slice(0, 48);
 }
 
+function looksLikeInstruction(text: string): boolean {
+  const instructionPatterns = [
+    /create a short chat title/i,
+    /return only the title/i,
+    /use \d+ to \d+ words/i,
+    /no quotes/i,
+    /no punctuation/i,
+    /capitalize the first letter/i,
+    /output a short chat title/i,
+    /we need to output/i,
+  ];
+  return instructionPatterns.some(pattern => pattern.test(text));
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -27,7 +41,10 @@ export async function POST(request: NextRequest) {
     });
 
     if ('text' in result) {
-      return NextResponse.json({ title: sanitizeTitle(result.text) });
+      const sanitized = sanitizeTitle(result.text);
+      if (!looksLikeInstruction(sanitized)) {
+        return NextResponse.json({ title: sanitized });
+      }
     }
 
     return NextResponse.json({ title: fallbackTitleFromPrompt(prompt) });

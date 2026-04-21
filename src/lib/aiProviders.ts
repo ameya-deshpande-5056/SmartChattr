@@ -74,9 +74,8 @@ const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const OPENROUTER_MODEL_IDS = [
   'openrouter/free',
 ] as const;
-const MAX_HISTORY_TURNS = 7;
-const DEFAULT_MAX_CONTEXT_CHARS = 480;
-const MODEL_ID_PATTERN = /^[a-z0-9][a-z0-9._/-]*$/i;
+const MAX_HISTORY_TURNS = 8;
+const DEFAULT_MAX_CONTEXT_CHARS = 768;
 const LIVE_INFO_PATTERN =
   /\b(current|latest|recent|today|tonight|tomorrow|yesterday|now|live|breaking|news|headline|weather|forecast|temperature|rain|snow|storm|sports|score|match|game|fixture|standing|rankings|stock|market|price|crypto|bitcoin|ethereum|time|date|day|week|month|year|election|result|traffic|prediction|predict|odds|trend|trending)\b/i;
 const DATE_PATTERN =
@@ -104,7 +103,7 @@ function getSystemInstruction(mode: GenerationMode) {
     return 'Create a short chat title from the user prompt. Return only the title. Use 2 to 6 words. No quotes. No punctuation unless essential. Capitalize the first letter.';
   }
 
-  return 'Be accurate, clear, and friendly. Write in plain, natural language for everyday users. Keep answers reasonably concise, but complete. Do not stop mid-thought or mid-sentence. Add a little warmth when it helps. Use plain text unless formatting clearly improves clarity. Use live web or code tools only when current or external information is genuinely needed.';
+  return 'Be accurate, clear, and friendly. Use plain language. Keep answers concise but complete. Always finish fully - never cut off. Add warmth when helpful. Use formatting only when it improves clarity. Use live web or code tools only for current/external information.';
 }
 
 function getProviderLimits(mode: GenerationMode) {
@@ -117,8 +116,8 @@ function getProviderLimits(mode: GenerationMode) {
   }
 
   return {
-    maxOutputTokens: 1024,
-    temperature: 0.5,
+    maxOutputTokens: DEFAULT_MAX_CONTEXT_CHARS,
+    temperature: 0.4,
     topP: 0.8,
   };
 }

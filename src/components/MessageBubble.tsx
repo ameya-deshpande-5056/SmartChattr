@@ -7,7 +7,10 @@ import type { MessageRole } from '@/types/chat';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 import { Copy } from 'lucide-react';
+import 'katex/dist/katex.min.css';
 
 interface MessageBubbleProps {
   role: MessageRole;
@@ -23,14 +26,25 @@ type CodeBlockProps = JSX.IntrinsicElements['code'] & {
   node?: any;
 };
 
+const preprocessMath = (content: string): string => {
+  // Convert LaTeX \[...\] to $$...$$
+  let processed = content.replace(/\\\[([\s\S]*?)\\\]/g, '$$$1$$');
+  
+  // Convert LaTeX \(...\) to $...$
+  processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, '$1');
+  
+  return processed;
+};
+
 const CodeBlock: FC<CodeBlockProps & { role?: MessageRole }> = ({ inline, className, children, role, ...props }) => {
   const [copied, setCopied] = useState(false);
   const code = String(children).replace(/\n$/, '');
   const language = /language-(\w+)/.exec(className || '')?.[1] || 'code';
 
   const isUser = role === 'user';
+  const isInline = !className || !/language-/.test(className);
 
-  if (inline) {
+  if (isInline) {
     return <code className={cn("rounded px-1 py-0.5 text-sm font-mono", isUser ? 'bg-slate-600 text-slate-100' : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100')}>{code}</code>;
   }
 
@@ -93,7 +107,8 @@ export function MessageBubble({ role, content, timestamp, aiProvider, aiModel, e
           : 'bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-bl-sm'
       )}>
         <ReactMarkdown
-          remarkPlugins={[remarkGfm, remarkBreaks]}
+          remarkPlugins={[remarkGfm, remarkBreaks, [remarkMath, { singleDollarTextIgnore: false }]]}
+          rehypePlugins={[rehypeKatex]}
           components={{
             code: (props) => <CodeBlock {...props} role={role} />,
             h1: ({ children }) => <h1 className={cn("text-xl font-semibold mt-6 mb-3 last:mb-0", role === 'user' ? 'text-white' : 'text-slate-900 dark:text-slate-100')}>{children}</h1>,
@@ -128,7 +143,7 @@ export function MessageBubble({ role, content, timestamp, aiProvider, aiModel, e
             ),
           }}
         >
-          {content}
+          {preprocessMath(content)}
         </ReactMarkdown>
         {role === 'assistant' ? (
           <div className="mt-2 flex items-center justify-between gap-2">

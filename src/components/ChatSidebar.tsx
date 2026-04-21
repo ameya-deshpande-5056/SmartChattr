@@ -54,7 +54,7 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
     setIsExporting(true);
     try {
       const messages = await loadMessagesByChat(currentChatId);
-      await dispatchExport(chat, messages, `${chat.title || 'chat'}.${exportFormat}`);
+      await dispatchExportSingle(chat, messages, exportFormat, `${chat.title || 'chat'}.${exportFormat}`);
       setSuccessMessage('Export completed successfully!');
     } finally {
       setIsExporting(false);
@@ -118,16 +118,17 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
     }
   };
 
-  const dispatchExport = async (
+  const dispatchExportSingle = async (
     chat: ChatPreview,
     messages: Array<{ role: string; content: string }>,
+    exportFormat: 'pdf' | 'txt',
     filename: string,
   ) => {
     if (exportFormat === 'txt') {
       const text = buildChatText(chat.title, chat.id, chat.updatedAt.toISOString(), messages);
       downloadFile(filename, text, 'text/plain');
     } else {
-      const html = buildPrintableHtml(chat.title, chat.id, chat.updatedAt.toISOString(), messages);
+      const html = await buildPrintableHtml(chat.title, chat.id, chat.updatedAt.toISOString(), messages);
       openPrintPreview(chat.title, html);
     }
   };
@@ -142,7 +143,7 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
         .join('\n\n---\n\n');
       downloadFile('all-chats.txt', text, 'text/plain');
     } else {
-      const html = buildAllChatsPrintableHtml(
+      const html = await buildAllChatsPrintableHtml(
         chatsWithMessages.map(({ chat, messages }) => ({
           title: chat.title,
           chatId: chat.id,

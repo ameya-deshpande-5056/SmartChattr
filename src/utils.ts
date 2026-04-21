@@ -1,3 +1,12 @@
+import { unified } from 'unified';
+import remarkParse from 'remark-parse';
+import remarkRehype from 'remark-rehype';
+import rehypeStringify from 'rehype-stringify';
+import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+
 export function generateId(): string {
   return `id-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
@@ -45,13 +54,16 @@ export function buildChatCsv(title: string, chatId: string, messages: Array<{ ro
   return rows.join('\n');
 }
 
-export function buildPrintableChatSection(title: string, chatId: string, updatedAt: string, messages: Array<{ role: string; content: string }>) {
-  const messageNodes = messages.map((message) => `
+export async function buildPrintableChatSection(title: string, chatId: string, updatedAt: string, messages: Array<{ role: string; content: string }>) {
+  const messageNodes = await Promise.all(messages.map(async (message) => {
+    const html = await renderMarkdownAsHtml(message.content);
+    return `
       <div class="message ${message.role}">
         <div class="message-badge">${message.role.toUpperCase()}</div>
-        <div class="message-body">${renderMarkdownAsHtml(message.content)}</div>
+        <div class="message-body">${html}</div>
       </div>
-    `).join('');
+    `;
+  }));
 
   return `
     <section class="chat-section">
@@ -59,7 +71,7 @@ export function buildPrintableChatSection(title: string, chatId: string, updated
         <h1>${escapeHtml(title)}</h1>
         <p class="meta">Chat id: ${escapeHtml(chatId)} · Updated: ${escapeHtml(updatedAt)}</p>
       </div>
-      ${messageNodes}
+      ${messageNodes.join('')}
     </section>
   `;
 }
@@ -69,6 +81,7 @@ function buildPrintableDocument(title: string, body: string) {
     <html>
       <head>
         <title>${escapeHtml(title)}</title>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
         <style>
           :root {
             color-scheme: light;
@@ -252,200 +265,49 @@ function buildPrintableDocument(title: string, body: string) {
   `;
 }
 
-export function buildPrintableHtml(title: string, chatId: string, updatedAt: string, messages: Array<{ role: string; content: string }>) {
+export async function buildPrintableHtml(title: string, chatId: string, updatedAt: string, messages: Array<{ role: string; content: string }>) {
   return buildPrintableDocument(
     title,
-    buildPrintableChatSection(title, chatId, updatedAt, messages),
+    await buildPrintableChatSection(title, chatId, updatedAt, messages),
   );
 }
 
-export function buildAllChatsPrintableHtml(
+export async function buildAllChatsPrintableHtml(
   chatsWithMessages: Array<{ title: string; chatId: string; updatedAt: string; messages: Array<{ role: string; content: string }> }>,
 ) {
-  const body = chatsWithMessages
-    .map(({ title, chatId, updatedAt, messages }) => buildPrintableChatSection(title, chatId, updatedAt, messages))
-    .join('<div style="height: 8px; page-break-after: always;"></div>');
+  const body = await Promise.all(
+    chatsWithMessages.map(({ title, chatId, updatedAt, messages }) => 
+      buildPrintableChatSection(title, chatId, updatedAt, messages)
+    )
+  );
 
-  return buildPrintableDocument('All chats', body);
+  return buildPrintableDocument('All chats', body.join('<div style="height: 8px; page-break-after: always;"></div>'));
 }
 
-function renderMarkdownAsHtml(text: string) {
-  const escaped = escapeHtml(text);
-  const lines = escaped.split('\n');
-  let html = '';
-  let inCodeBlock = false;
-  let codeLanguage = '';
-  let listType: 'ul' | 'ol' | '' = '';
-  let inTable = false;
-  let tableHeaderRendered = false;
+function preprocessMathForPdf(text: string): string {
+  // Convert LaTeX \[...\] to $$...$$
+  let processed = text.replace(/\\\[([\s\S]*?)\\\]/g, '$$$1$$');
+  
+  // Convert LaTeX \(...\) to $...$
+  processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, '$1');
+  
+  return processed;
+}
 
-  const closeList = () => {
-    if (listType === 'ul') {
-      html += '</ul>';
-      listType = '';
-    } else if (listType === 'ol') {
-      html += '</ol>';
-      listType = '';
-    }
-  };
-
-  const closeTable = () => {
-    if (inTable) {
-      html += '</tbody></table>';
-      inTable = false;
-      tableHeaderRendered = false;
-    }
-  };
-
-  const formatInline = (line: string) =>
-    line
-      .replace(/\[(.+?)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/__(.+?)__/g, '<strong>$1</strong>')
-      .replace(/~~(.+?)~~/g, '<del>$1</del>')
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/_(.+?)_/g, '<em>$1</em>')
-      .replace(/ {2,}\n/g, '<br />');
-
-  const isTableDivider = (line: string) =>
-    /^\|?(\s*:?-{3,}:?\s*\|)+\s*:?-{3,}:?\s*\|?$/.test(line);
-
-  const parseTableCells = (line: string) =>
-    line
-      .trim()
-      .replace(/^\|/, '')
-      .replace(/\|$/, '')
-      .split('|')
-      .map((cell) => formatInline(cell.trim()));
-
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index];
-    const trimmed = line.trim();
-
-    if (/^```/.test(trimmed)) {
-      if (!inCodeBlock) {
-        inCodeBlock = true;
-        codeLanguage = trimmed.replace(/^```/, '').trim();
-        closeList();
-        closeTable();
-        html += `<div class="code-shell">${codeLanguage ? `<div class="code-language">${codeLanguage}</div>` : ''}<pre><code>`;
-      } else {
-        inCodeBlock = false;
-        codeLanguage = '';
-        html += '</code></pre></div>';
-      }
-      continue;
-    }
-
-    if (inCodeBlock) {
-      html += `${line}\n`;
-      continue;
-    }
-
-    if (trimmed === '') {
-      closeList();
-      closeTable();
-      continue;
-    }
-
-    if (/^---+$|^\*\*\*+$|^___+$/.test(trimmed)) {
-      closeList();
-      closeTable();
-      html += '<hr />';
-      continue;
-    }
-
-    if (trimmed.includes('|')) {
-      const nextLine = lines[index + 1]?.trim() ?? '';
-      if (!inTable && nextLine && isTableDivider(nextLine)) {
-        closeList();
-        const headerCells = parseTableCells(trimmed);
-        html += `<table><thead><tr>${headerCells.map((cell) => `<th>${cell}</th>`).join('')}</tr></thead><tbody>`;
-        inTable = true;
-        tableHeaderRendered = true;
-        continue;
-      }
-
-      if (inTable && !isTableDivider(trimmed)) {
-        const rowCells = parseTableCells(trimmed);
-        html += `<tr>${rowCells.map((cell) => `<td>${cell}</td>`).join('')}</tr>`;
-        continue;
-      }
-
-      if (inTable && isTableDivider(trimmed) && tableHeaderRendered) {
-        continue;
-      }
-    } else {
-      closeTable();
-    }
-
-    const heading = /^(#{1,6})\s+(.*)$/.exec(trimmed);
-    if (heading) {
-      closeList();
-      closeTable();
-      html += `<h${heading[1].length}>${formatInline(heading[2])}</h${heading[1].length}>`;
-      continue;
-    }
-
-    const blockquote = /^>\s+(.*)$/.exec(trimmed);
-    if (blockquote) {
-      closeList();
-      closeTable();
-      html += `<blockquote>${formatInline(blockquote[1])}</blockquote>`;
-      continue;
-    }
-
-    const taskMatch = /^[-*+]\s+\[( |x|X)\]\s+(.*)$/.exec(trimmed);
-    if (taskMatch) {
-      if (listType !== 'ul') {
-        closeList();
-        closeTable();
-        html += '<ul>';
-        listType = 'ul';
-      }
-      const checked = taskMatch[1].toLowerCase() === 'x' ? ' checked' : '';
-      html += `<li><input type="checkbox" disabled${checked} />${formatInline(taskMatch[2])}</li>`;
-      continue;
-    }
-
-    const ulMatch = /^[-*+]\s+(.*)$/.exec(trimmed);
-    if (ulMatch) {
-      if (listType !== 'ul') {
-        closeList();
-        closeTable();
-        html += '<ul>';
-        listType = 'ul';
-      }
-      html += `<li>${formatInline(ulMatch[1])}</li>`;
-      continue;
-    }
-
-    const olMatch = /^(\d+)\.\s+(.*)$/.exec(trimmed);
-    if (olMatch) {
-      if (listType !== 'ol') {
-        closeList();
-        closeTable();
-        html += '<ol>';
-        listType = 'ol';
-      }
-      html += `<li>${formatInline(olMatch[2])}</li>`;
-      continue;
-    }
-
-    closeList();
-    closeTable();
-    html += `<p>${formatInline(trimmed)}</p>`;
-  }
-
-  closeList();
-  closeTable();
-
-  if (inCodeBlock) {
-    html += '</code></pre></div>';
-  }
-
-  return html;
+async function renderMarkdownAsHtml(text: string): Promise<string> {
+  const preprocessed = preprocessMathForPdf(text);
+  
+  const result = await unified()
+    .use(remarkParse)
+    .use(remarkGfm)
+    .use(remarkBreaks)
+    .use(remarkMath)
+    .use(remarkRehype)
+    .use(rehypeKatex)
+    .use(rehypeStringify)
+    .process(preprocessed);
+  
+  return String(result);
 }
 
 function escapeHtml(text: string) {

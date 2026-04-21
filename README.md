@@ -122,8 +122,9 @@ Chat responses support:
 - fenced code blocks
 - links
 - strikethrough
+- math/LaTeX
 
-PDF exports also include improved markdown handling for these formats, including better code block rendering.
+PDF exports also include improved markdown handling for these formats, including better code block rendering and math/LaTeX support.
 
 ## Project Structure
 

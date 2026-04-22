@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { cn, downloadFile, buildAllChatsPrintableHtml, buildChatText, buildPrintableHtml, openPrintPreview, getThemeMode, setTheme } from '@/utils';
-import type { ChatPreview } from '@/types/chat';
-import { Trash2, X, Settings, Download, Package, Sun, Moon, Zap, Upload, Database, Search, MoreVertical, FileText, Printer } from 'lucide-react';
-import { exportDatabaseBackup, importDatabaseBackup, loadMessages, loadMessagesByChat } from '@/lib/db';
+import type { ChatPreview, Message } from '@/types/chat';
+import { Trash2, X, Settings, Download, Package, Sun, Moon, Zap, Upload, Database, Search, MoreVertical, FileText, Printer, DownloadCloud } from 'lucide-react';
+import { exportDatabaseBackup, importDatabaseBackup, loadMessages, loadMessagesByChat, exportSingleChatAsJson, type ImportMode } from '@/lib/db';
 
 interface ChatSidebarProps {
   className?: string;
@@ -30,6 +30,10 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const chatListRef = useRef<HTMLDivElement>(null);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importMode, setImportMode] = useState<ImportMode>('replace');
+  const [backupData, setBackupData] = useState<{ chats: ChatPreview[]; messages: Message[] } | null>(null);
+  const [selectedChatIds, setSelectedChatIds] = useState<Set<string>>(new Set());
 
   const handleClickOutside = useCallback((event: MouseEvent) => {
     const target = event.target as HTMLElement;
@@ -121,12 +125,22 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
 
   const getChatById = (chatId: string) => chats.find((chat) => chat.id === chatId);
 
-  const handleExport = async (chat: ChatPreview, format: 'pdf' | 'txt') => {
+  const handleExport = async (chat: ChatPreview, format: 'pdf' | 'txt' | 'json') => {
     setIsExporting(true);
     try {
-      const messages = await loadMessagesByChat(chat.id);
-      await dispatchExportSingle(chat, messages, format, `${chat.title || 'chat'}.${format}`);
-      setSuccessMessage(`${format.toUpperCase()} export completed successfully!`);
+      if (format === 'json') {
+        const backup = await exportSingleChatAsJson(chat.id);
+        downloadFile(
+          `${chat.title || 'chat'}-backup.json`,
+          JSON.stringify(backup, null, 2),
+          'application/json',
+        );
+        setSuccessMessage('Chat backed up successfully!');
+      } else {
+        const messages = await loadMessagesByChat(chat.id);
+        await dispatchExportSingle(chat, messages, format, `${chat.title || 'chat'}.${format}`);
+        setSuccessMessage(`${format.toUpperCase()} export completed successfully!`);
+      }
       setMenuChatId(null);
       setMenuPosition(null);
     } catch (error) {
@@ -171,8 +185,40 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!window.confirm('Importing a backup will replace all current local chats on this device. Continue?')) {
-      event.target.value = '';
+    setIsExporting(true);
+    setErrorMessage(null);
+
+    try {
+      const text = await file.text();
+      const backup = JSON.parse(text);
+      
+      if (!backup || typeof backup !== 'object') {
+        throw new Error('Invalid backup file.');
+      }
+
+      const data = backup as { chats?: ChatPreview[]; messages?: Message[] };
+      const chats = Array.isArray(data.chats) ? data.chats : null;
+      const messages = Array.isArray(data.messages) ? data.messages : null;
+
+      if (!chats || !messages) {
+        throw new Error('Backup file is missing chats or messages.');
+      }
+
+      setBackupData({ chats, messages });
+      setSelectedChatIds(new Set(chats.map(c => c.id)));
+      setShowImportDialog(true);
+      setImportMode('replace');
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to parse backup file.');
+      if (importInputRef.current) importInputRef.current.value = '';
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleImportWithMode = async () => {
+    if (!backupData || selectedChatIds.size === 0) {
+      setErrorMessage('Please select at least one chat to import.');
       return;
     }
 
@@ -180,15 +226,26 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
     setErrorMessage(null);
 
     try {
-      const text = await file.text();
-      const backup = JSON.parse(text);
-      await importDatabaseBackup(backup);
+      const selectedChats = backupData.chats.filter(c => selectedChatIds.has(c.id));
+      const selectedMessages = backupData.messages.filter(m => selectedChatIds.has(m.chatId));
+      
+      const backup = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        chats: selectedChats,
+        messages: selectedMessages,
+      };
+      
+      await importDatabaseBackup(backup, importMode);
       setSuccessMessage('Backup imported successfully! Reloading...');
+      setShowImportDialog(false);
+      setBackupData(null);
+      setSelectedChatIds(new Set());
+      if (importInputRef.current) importInputRef.current.value = '';
       window.setTimeout(() => window.location.reload(), 800);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Failed to import backup.');
     } finally {
-      event.target.value = '';
       setIsExporting(false);
     }
   };
@@ -340,6 +397,124 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
                   className="hidden"
                   onChange={importDatabase}
                 />
+                {showImportDialog && backupData && (
+                  <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Import Backup</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Select chats to import and choose import mode:</p>
+                      
+                      <div className="space-y-2 mb-4 max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                        <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={selectedChatIds.size === backupData.chats.length}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedChatIds(new Set(backupData.chats.map(c => c.id)));
+                              } else {
+                                setSelectedChatIds(new Set());
+                              }
+                            }}
+                            className="rounded"
+                          />
+                          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            Select All ({backupData.chats.length} chats)
+                          </span>
+                        </div>
+                        {backupData.chats.map((chat) => (
+                          <label key={chat.id} className="flex items-start gap-2 p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selectedChatIds.has(chat.id)}
+                              onChange={(e) => {
+                                const newSet = new Set(selectedChatIds);
+                                if (e.target.checked) {
+                                  newSet.add(chat.id);
+                                } else {
+                                  newSet.delete(chat.id);
+                                }
+                                setSelectedChatIds(newSet);
+                              }}
+                              className="mt-1 rounded"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{chat.title || 'New Chat'}</div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400">
+                                {new Date(chat.updatedAt).toLocaleDateString()} • {chat.preview || 'No preview'}
+                              </div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+
+                      <div className="space-y-3 mb-4">
+                        <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="importMode"
+                            value="replace"
+                            checked={importMode === 'replace'}
+                            onChange={(e) => setImportMode(e.target.value as ImportMode)}
+                            className="mt-1"
+                          />
+                          <div>
+                            <div className="font-medium text-gray-900 dark:text-gray-100">Replace all</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">Delete all existing chats and replace with selected</div>
+                          </div>
+                        </label>
+                        <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="importMode"
+                            value="merge"
+                            checked={importMode === 'merge'}
+                            onChange={(e) => setImportMode(e.target.value as ImportMode)}
+                            className="mt-1"
+                          />
+                          <div>
+                            <div className="font-medium text-gray-900 dark:text-gray-100">Merge</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">Update existing chats by ID, add new ones</div>
+                          </div>
+                        </label>
+                        <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="importMode"
+                            value="add"
+                            checked={importMode === 'add'}
+                            onChange={(e) => setImportMode(e.target.value as ImportMode)}
+                            className="mt-1"
+                          />
+                          <div>
+                            <div className="font-medium text-gray-900 dark:text-gray-100">Add only</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">Add selected chats without modifying existing ones</div>
+                          </div>
+                        </label>
+                      </div>
+
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => {
+                            setShowImportDialog(false);
+                            setBackupData(null);
+                            setSelectedChatIds(new Set());
+                            if (importInputRef.current) importInputRef.current.value = '';
+                          }}
+                          className="flex-1 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleImportWithMode}
+                          disabled={isExporting || selectedChatIds.size === 0}
+                          className="flex-1 px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                        >
+                          {isExporting ? 'Importing...' : `Import ${selectedChatIds.size} chat${selectedChatIds.size !== 1 ? 's' : ''}`}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
             <div className="space-y-2">
@@ -497,6 +672,17 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
                     >
                       <FileText className="h-4 w-4 text-slate-500" />
                       Export to TXT
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleExport(chat, 'json');
+                      }}
+                      disabled={isExporting}
+                      className="w-full px-3 py-2 rounded-lg text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+                    >
+                      <DownloadCloud className="h-4 w-4 text-emerald-500" />
+                      Backup as JSON
                     </button>
                   </div>
                   <button

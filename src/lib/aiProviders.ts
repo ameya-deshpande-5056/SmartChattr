@@ -44,6 +44,41 @@ type ProviderSuccess = {
 
 type ProviderAttempt = () => Promise<ProviderSuccess | { error: ProviderError } | null>;
 
+type TavilySearchResult = {
+  title?: string;
+  url?: string;
+  content?: string;
+  score?: number;
+  published_date?: string;
+};
+
+type TavilySearchResponse = {
+  answer?: string;
+  results?: TavilySearchResult[];
+};
+
+type ExaSearchResult = {
+  title?: string;
+  url?: string;
+  publishedDate?: string;
+  author?: string;
+  text?: string;
+  highlights?: string[];
+  score?: number;
+};
+
+type ExaSearchResponse = {
+  results?: ExaSearchResult[];
+  output?: {
+    content?: unknown;
+    grounding?: Array<{
+      field: string;
+      citations: Array<{ url: string; title?: string }>;
+      confidence: string;
+    }>;
+  };
+};
+
 const GEMINI_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 const GOOGLE_CHAT_MODEL_IDS = [
   'gemini-flash-latest',
@@ -60,6 +95,8 @@ const GOOGLE_TITLE_MODEL_IDS = [
   'gemini-flash-latest',
 ] as const;
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const TAVILY_API_URL = 'https://api.tavily.com/search';
+const EXA_API_URL = 'https://api.exa.ai/search';
 const GROQ_CHAT_MODEL_IDS = [
   'groq/compound',
   'groq/compound-mini',
@@ -76,8 +113,8 @@ const OPENROUTER_MODEL_IDS = [
 ] as const;
 const MAX_HISTORY_TURNS = 8;
 const DEFAULT_MAX_CONTEXT_CHARS = 2048;
-const LIVE_INFO_PATTERN =
-  /\b(current|latest|recent|today|tonight|tomorrow|yesterday|now|live|breaking|news|headline|weather|forecast|temperature|rain|snow|storm|sports|score|match|game|fixture|standing|rankings|stock|market|price|crypto|bitcoin|ethereum|time|date|day|week|month|year|election|result|traffic|prediction|predict|odds|trend|trending)\b/i;
+const TIME_SENSITIVE_PATTERN =
+  /\b(current|latest|recent|today|tonight|tomorrow|yesterday|now|live|breaking|news|headline|weather|forecast|temperature|rain|snow|storm|sports|score|match|game|fixture|standing|rankings|stock|market|price|crypto|bitcoin|ethereum|election|result|traffic|trend|trending|headlines|update|updates|just in|developing|coverage|alert|bulletin|humidity|heatwave|cyclone|flood|earthquake|scores|standings|table|points table|tournament|league|stocks|markets|prices|nifty|sensex|dow|nasdaq|elections|results|delay|delays|status|outage|outages|downtime|disruption|outlook|ongoing|crisis|emergency|disaster|conflict|war|attack|strike|protest|riot|violence|viral|next|upcoming|expected|release|released|launch|announced|appointed)\b/i;
 const DATE_PATTERN =
   /\b(20\d{2}|19\d{2}|jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/i;
 
@@ -95,7 +132,102 @@ function prefersLiveCapability(message: string, history: ChatTurn[]) {
     .join(' ');
   const combined = `${recentUserContext} ${message}`.trim();
 
-  return LIVE_INFO_PATTERN.test(combined) || DATE_PATTERN.test(combined);
+  return TIME_SENSITIVE_PATTERN.test(combined) || DATE_PATTERN.test(combined);
+}
+
+async function searchExa(query: string): Promise<string | null> {
+  const apiKey = process.env.EXA_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const response = await fetch(EXA_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+      },
+      body: JSON.stringify({
+        query,
+        type: 'auto',
+        numResults: 5,
+        contents: {
+          highlights: {
+            maxCharacters: 4000,
+          },
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('Exa API error:', response.status, await response.text());
+      return null;
+    }
+
+    const data = (await response.json()) as ExaSearchResponse;
+    const results = data.results;
+
+    if (!results || results.length === 0) return null;
+
+    const context = results
+      .map((result) => {
+        const source = result.title || result.url || 'Unknown source';
+        const content = result.highlights?.join(' ') || result.text || '';
+        return `[${source}] ${content}`;
+      })
+      .join('\n\n');
+
+    return context;
+  } catch (error) {
+    console.error('Exa search error:', error);
+    return null;
+  }
+}
+
+async function searchTavily(query: string): Promise<string | null> {
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const response = await fetch(TAVILY_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query,
+        search_depth: 'basic',
+        max_results: 5,
+        include_answer: false,
+        include_raw_content: false,
+        include_domains: [],
+        exclude_domains: [],
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('Tavily API error:', response.status, await response.text());
+      return null;
+    }
+
+    const data = (await response.json()) as TavilySearchResponse;
+    const results = data.results;
+
+    if (!results || results.length === 0) return null;
+
+    const context = results
+      .map((result) => {
+        const source = result.title || result.url || 'Unknown source';
+        const content = result.content || '';
+        return `[${source}] ${content}`;
+      })
+      .join('\n\n');
+
+    return context;
+  } catch (error) {
+    console.error('Tavily search error:', error);
+    return null;
+  }
 }
 
 function getSystemInstruction(mode: GenerationMode) {
@@ -369,22 +501,31 @@ export async function generateText({
   mode = 'chat',
 }: GenerateTextOptions): Promise<ProviderSuccess | { error: ProviderError }> {
   const shouldPreferLiveCapability = mode === 'chat' && prefersLiveCapability(message, history);
+  let augmentedMessage = message;
+
+  if (shouldPreferLiveCapability) {
+    const searchContext = (await searchTavily(message)) || (await searchExa(message));
+    if (searchContext) {
+      augmentedMessage = `Context from web search:\n${searchContext}\n\nUser question: ${message}`;
+    }
+  }
+
   const providerAttempts: ProviderAttempt[] = mode === 'title'
     ? [
-        () => tryOpenRouterProvider(message, history, mode),
-        () => tryGroqProvider(message, history, mode),
-        () => tryGoogleProvider(message, history, mode),
+        () => tryOpenRouterProvider(augmentedMessage, history, mode),
+        () => tryGroqProvider(augmentedMessage, history, mode),
+        () => tryGoogleProvider(augmentedMessage, history, mode),
       ]
     : shouldPreferLiveCapability
       ? [
-          () => tryGroqProvider(message, history, mode),
-          () => tryGoogleProvider(message, history, mode),
-          () => tryOpenRouterProvider(message, history, mode),
+          () => tryGroqProvider(augmentedMessage, history, mode),
+          () => tryOpenRouterProvider(augmentedMessage, history, mode),
+          () => tryGoogleProvider(augmentedMessage, history, mode),
         ]
       : [
-          () => tryGoogleProvider(message, history, mode),
-          () => tryGroqProvider(message, history, mode),
-          () => tryOpenRouterProvider(message, history, mode),
+          () => tryGoogleProvider(augmentedMessage, history, mode),
+          () => tryGroqProvider(augmentedMessage, history, mode),
+          () => tryOpenRouterProvider(augmentedMessage, history, mode),
         ];
   const errors: Array<{ error: ProviderError }> = [];
 

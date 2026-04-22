@@ -17,6 +17,8 @@ type DatabaseBackup = {
   messages: Message[];
 };
 
+export type ImportMode = 'replace' | 'merge' | 'add';
+
 export class ChatDb extends Dexie {
   chats!: Table<StoredChat>;
   messages!: Table<Message>;
@@ -140,7 +142,7 @@ export async function exportDatabaseBackup(): Promise<DatabaseBackup> {
   };
 }
 
-export async function importDatabaseBackup(backup: unknown): Promise<void> {
+export async function importDatabaseBackup(backup: unknown, mode: ImportMode = 'replace'): Promise<void> {
   if (!backup || typeof backup !== 'object') {
     throw new Error('Invalid backup file.');
   }
@@ -190,13 +192,25 @@ export async function importDatabaseBackup(backup: unknown): Promise<void> {
         content: candidate.content,
         chatId: candidate.chatId,
         timestamp: candidate.timestamp,
+        aiProvider: candidate.aiProvider,
+        aiModel: candidate.aiModel,
       });
     })
     .filter((message): message is Message => Boolean(message));
 
   await db.transaction('rw', [db.chats, db.messages], async () => {
-    await db.messages.clear();
-    await db.chats.clear();
+    if (mode === 'replace') {
+      await db.messages.clear();
+      await db.chats.clear();
+    } else if (mode === 'merge') {
+      const existingChatIds = new Set((await db.chats.toArray()).map(c => c.id));
+      for (const chat of normalizedChats) {
+        if (existingChatIds.has(chat.id)) {
+          await db.messages.where('chatId').equals(chat.id).delete();
+        }
+      }
+    }
+    // 'add' mode doesn't delete anything
 
     if (normalizedChats.length > 0) {
       await db.chats.bulkPut(normalizedChats);
@@ -206,5 +220,27 @@ export async function importDatabaseBackup(backup: unknown): Promise<void> {
       await db.messages.bulkPut(normalizedMessages);
     }
   });
+}
+
+export async function exportSingleChatAsJson(chatId: string): Promise<DatabaseBackup> {
+  const [chat, messages] = await Promise.all([
+    db.chats.get(chatId),
+    db.messages.where('chatId').equals(chatId).toArray(),
+  ]);
+
+  if (!chat) {
+    throw new Error('Chat not found.');
+  }
+
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    chats: [{
+      ...chat,
+      createdAt: new Date(chat.createdAt),
+      updatedAt: new Date(chat.updatedAt),
+    }],
+    messages: messages.map((message) => normalizeMessage(message)),
+  };
 }
 

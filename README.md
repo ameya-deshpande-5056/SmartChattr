@@ -21,12 +21,15 @@ A local-first AI chat app built with Next.js, TypeScript, Dexie, and multiple LL
 - AI-generated chat titles from the first prompt
 - Markdown rendering in chat with code blocks, tables, task lists, and copy actions
 - Horizontal scroll for code blocks and tables on mobile
-- PDF and TXT export for single chats and all chats
+- PDF and TXT export for single chats and all chats (includes AI model info)
 - Full local database backup export/import as JSON
+- Per-chat JSON backup via flyout menu
+- Import with mode selection (replace, merge, or add chats)
+- Select specific chats to import from backup
+- WhatsApp/Telegram-style date separators in chat view
 - Dark, light, and auto theme modes (auto follows system preference, landing page theme independent from chat page)
 - Interactive landing page demo with theme toggle
 - Clickable header brand to navigate back to landing page
-- Chats sorted by recency in sidebar
 - Mobile-friendly layout with responsive sidebar/settings
 
 ## Stack
@@ -66,6 +69,8 @@ At minimum, add one provider key. Google Gemini is the simplest starting point.
 GEMINI_API_KEY=your_google_ai_studio_key
 GROQ_API_KEY=your_groq_key
 OPENROUTER_API_KEY=your_openrouter_key
+TAVILY_API_KEY=your_tavily_key
+EXA_API_KEY=your_exa_key
 ```
 
 Any one of these provider keys is enough to get the app working. Adding more than one gives SmartChattr fallback options and better routing flexibility for different prompt types.
@@ -106,13 +111,21 @@ SmartChattr supports two different kinds of data export:
 
 - Chat export:
   - Single chat or all chats
-  - `PDF` or `TXT`
+  - `PDF` or `TXT` (includes AI provider and model info)
 - Full backup:
   - Entire local IndexedDB contents
   - Exported as JSON
   - Can be imported back later to restore all local chats/messages
+- Per-chat backup:
+  - Export individual chat as JSON via flyout menu
+  - Can be imported later
 
-Importing a backup replaces the current local database on that device.
+Importing a backup offers three modes:
+- **Replace**: Delete all existing chats and replace with selected
+- **Merge**: Update existing chats by ID, add new ones
+- **Add**: Add selected chats without modifying existing ones
+
+You can also select specific chats to import from a backup file.
 
 ## Markdown Support
 

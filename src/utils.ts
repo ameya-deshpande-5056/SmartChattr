@@ -33,10 +33,13 @@ export function escapeCsv(value: string): string {
   return `"${escaped}"`;
 }
 
-export function buildChatText(title: string, chatId: string, updatedAt: string, messages: Array<{ role: string; content: string }>) {
+export function buildChatText(title: string, chatId: string, updatedAt: string, messages: Array<{ role: string; content: string; aiProvider?: string; aiModel?: string }>) {
   const header = `Chat title: ${title}\nChat id: ${chatId}\nUpdated: ${updatedAt}\n\n`;
   const body = messages
-    .map((message, index) => `${index + 1}. ${message.role.toUpperCase()}: ${message.content}`)
+    .map((message, index) => {
+      const aiInfo = message.aiProvider || message.aiModel ? ` [${[message.aiProvider, message.aiModel].filter(Boolean).join(' · ')}]` : '';
+      return `${index + 1}. ${message.role.toUpperCase()}${aiInfo}: ${message.content}`;
+    })
     .join('\n\n');
   return `${header}${body}`;
 }
@@ -54,12 +57,14 @@ export function buildChatCsv(title: string, chatId: string, messages: Array<{ ro
   return rows.join('\n');
 }
 
-export async function buildPrintableChatSection(title: string, chatId: string, updatedAt: string, messages: Array<{ role: string; content: string }>) {
+export async function buildPrintableChatSection(title: string, chatId: string, updatedAt: string, messages: Array<{ role: string; content: string; aiProvider?: string; aiModel?: string }>) {
   const messageNodes = await Promise.all(messages.map(async (message) => {
     const html = await renderMarkdownAsHtml(message.content);
+    const aiInfo = message.aiProvider || message.aiModel ? `<div class="message-ai">AI: ${[message.aiProvider, message.aiModel].filter(Boolean).join(' · ')}</div>` : '';
     return `
       <div class="message ${message.role}">
         <div class="message-badge">${message.role.toUpperCase()}</div>
+        ${aiInfo}
         <div class="message-body">${html}</div>
       </div>
     `;
@@ -138,6 +143,12 @@ function buildPrintableDocument(title: string, body: string) {
             text-transform: uppercase;
             background: rgba(59, 130, 246, 0.12);
             color: #1d4ed8;
+          }
+          .message-ai {
+            font-size: 0.7rem;
+            color: #64748b;
+            margin-bottom: 8px;
+            font-style: italic;
           }
           .message-body p {
             margin: 0 0 16px;
@@ -265,7 +276,7 @@ function buildPrintableDocument(title: string, body: string) {
   `;
 }
 
-export async function buildPrintableHtml(title: string, chatId: string, updatedAt: string, messages: Array<{ role: string; content: string }>) {
+export async function buildPrintableHtml(title: string, chatId: string, updatedAt: string, messages: Array<{ role: string; content: string; aiProvider?: string; aiModel?: string }>) {
   return buildPrintableDocument(
     title,
     await buildPrintableChatSection(title, chatId, updatedAt, messages),
@@ -273,7 +284,7 @@ export async function buildPrintableHtml(title: string, chatId: string, updatedA
 }
 
 export async function buildAllChatsPrintableHtml(
-  chatsWithMessages: Array<{ title: string; chatId: string; updatedAt: string; messages: Array<{ role: string; content: string }> }>,
+  chatsWithMessages: Array<{ title: string; chatId: string; updatedAt: string; messages: Array<{ role: string; content: string; aiProvider?: string; aiModel?: string }> }>,
 ) {
   const body = await Promise.all(
     chatsWithMessages.map(({ title, chatId, updatedAt, messages }) => 

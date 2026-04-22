@@ -1,7 +1,7 @@
 export const STARTER_PROMPTS = [
   {
     label: 'Summarize notes',
-    prompt: 'Please turn these rough notes into a clean summary with a short list of action items:\n',
+    prompt: 'Summarize these rough notes with a list of items:\n',
   },
   {
     label: 'Write an email',

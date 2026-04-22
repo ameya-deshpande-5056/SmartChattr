@@ -62,12 +62,12 @@ export default function ChatPage() {
       </div>
       <div className="flex-1 flex flex-col w-full min-h-0">
         <Header onNewChat={handleCreateChat} onMenuClick={() => setSidebarOpen(true)} />
-        <div className="flex-1 min-h-0 overflow-hidden px-4 py-8 md:px-6">
+        <div className="flex-1 min-h-0 flex flex-col overflow-x-hidden overflow-y-auto px-4 py-8 md:px-6">
           <div className="flex h-full flex-col items-center justify-center gap-6">
             <div className="max-w-2xl text-center">
               <h2 className="text-3xl font-semibold text-gray-900 dark:text-gray-100">Start with something simple</h2>
               <p className="mt-3 text-base leading-7 text-gray-500 dark:text-gray-400">
-                Pick a prompt below or type your own message. We&apos;ll create a fresh chat as soon as you send it.
+                Pick a prompt below or type your own message. A fresh chat will be created as soon as you send a prompt or a message.
               </p>
             </div>
             <StarterPrompts onSelect={applyDraft} />
@@ -79,4 +79,3 @@ export default function ChatPage() {
     </div>
   );
 }
-

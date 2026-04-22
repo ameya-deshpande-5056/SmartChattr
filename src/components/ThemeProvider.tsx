@@ -1,36 +1,17 @@
 'use client';
 
 import { useEffect } from 'react';
-import { getMillisecondsUntilNextThemeChange, getTheme, getThemeMode } from '@/utils';
+import { getTheme, getThemeMode } from '@/utils';
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    let timeoutId: number | null = null;
-
     const updateTheme = () => {
       const theme = getTheme();
       document.documentElement.classList.toggle('dark', theme === 'dark');
     };
 
-    const scheduleNextUpdate = () => {
-      if (timeoutId !== null) {
-        window.clearTimeout(timeoutId);
-      }
-
-      if (getThemeMode() !== 'auto') {
-        timeoutId = null;
-        return;
-      }
-
-      timeoutId = window.setTimeout(() => {
-        updateTheme();
-        scheduleNextUpdate();
-      }, getMillisecondsUntilNextThemeChange());
-    };
-
     const syncTheme = () => {
       updateTheme();
-      scheduleNextUpdate();
     };
 
     const handleVisibilityOrFocus = () => {
@@ -43,19 +24,26 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
+    const handleSystemThemeChange = (e: MediaQueryListEvent) => {
+      if (getThemeMode() === 'auto') {
+        updateTheme();
+      }
+    };
+
     syncTheme();
 
     window.addEventListener('focus', handleVisibilityOrFocus);
     document.addEventListener('visibilitychange', handleVisibilityOrFocus);
     window.addEventListener('storage', handleStorage);
 
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    mediaQuery.addEventListener('change', handleSystemThemeChange);
+
     return () => {
-      if (timeoutId !== null) {
-        window.clearTimeout(timeoutId);
-      }
       window.removeEventListener('focus', handleVisibilityOrFocus);
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
       window.removeEventListener('storage', handleStorage);
+      mediaQuery.removeEventListener('change', handleSystemThemeChange);
     };
   }, []);
 

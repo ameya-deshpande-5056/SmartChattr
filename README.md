@@ -23,7 +23,7 @@ A local-first AI chat app built with Next.js, TypeScript, Dexie, and multiple LL
 - Horizontal scroll for code blocks and tables on mobile
 - PDF and TXT export for single chats and all chats
 - Full local database backup export/import as JSON
-- Dark, light, and auto theme modes (landing page theme independent from chat page)
+- Dark, light, and auto theme modes (auto follows system preference, landing page theme independent from chat page)
 - Interactive landing page demo with theme toggle
 - Clickable header brand to navigate back to landing page
 - Chats sorted by recency in sidebar

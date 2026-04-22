@@ -330,17 +330,15 @@ export function openPrintPreview(title: string, html: string) {
   }, 250);
 }
 
-// Determine theme based on current time (light 6 AM - 6 PM, dark otherwise)
+// Determine theme based on stored preference or system preference
 export function getTheme(): 'light' | 'dark' {
   if (typeof window === 'undefined') return 'light'; // SSR fallback
   const stored = localStorage.getItem('theme');
   if (stored === 'light' || stored === 'dark') {
     return stored;
   }
-  // auto
-  const now = new Date();
-  const hour = now.getHours();
-  return hour >= 6 && hour < 18 ? 'light' : 'dark';
+  // auto - use system preference
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
 export function getMillisecondsUntilNextThemeChange(reference = new Date()): number {

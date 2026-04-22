@@ -28,7 +28,7 @@ export default function RootLayout({
               var stored = localStorage.getItem('theme');
               var theme = stored === 'light' || stored === 'dark'
                 ? stored
-                : ((new Date().getHours() >= 6 && new Date().getHours() < 18) ? 'light' : 'dark');
+                : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
               document.documentElement.classList.toggle('dark', theme === 'dark');
             } catch (error) {}
           })();

@@ -4,7 +4,11 @@ import { useEffect, useState } from 'react';
 
 const VISIT_KEY = 'smartchattr-landing-visits';
 
-export function LandingFooter() {
+interface LandingFooterProps {
+  effectiveTheme: 'light' | 'dark';
+}
+
+export function LandingFooter({ effectiveTheme }: LandingFooterProps) {
   const [visits, setVisits] = useState<number | null>(null);
 
   useEffect(() => {
@@ -18,7 +22,7 @@ export function LandingFooter() {
   }, []);
 
   return (
-    <footer className="border-t border-gray-200 py-6 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+    <footer className={`border-t py-6 text-sm ${effectiveTheme === 'dark' ? 'border-gray-700 text-gray-400' : 'border-gray-200 text-gray-600'}`}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p>© {new Date().getFullYear()} SmartChattr. All rights reserved.</p>
         <p>{visits === null ? 'Visitor stats unavailable.' : `Visitor count on this browser: ${visits}`}</p>

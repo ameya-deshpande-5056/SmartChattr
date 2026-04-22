@@ -1,7 +1,7 @@
 # SmartChattr
 
 <p align="center">
-  <img src="./public/brandmark.svg" alt="SmartChattr logo" width="88" height="88" />
+  <img src="./public/brandmark.svg" alt="SmartChattr logo" width="180" height="180" />
 </p>
 
 [![Next.js](https://img.shields.io/badge/Next.js-14-blue.svg)](https://nextjs.org)
@@ -18,6 +18,7 @@ A local-first AI chat app built with Next.js, TypeScript, Dexie, and multiple LL
 - Full-text search across all chats (titles and message content)
 - AI provider fallback chain for chat responses
 - Context-aware routing for live/current-info prompts
+- Web search augmentation for timely questions and current events
 - AI-generated chat titles from the first prompt
 - Markdown rendering in chat with code blocks, tables, task lists, and copy actions
 - Horizontal scroll for code blocks and tables on mobile
@@ -48,8 +49,10 @@ SmartChattr can use multiple providers and falls back when one is unavailable or
 - Google Gemini
 - Groq
 - OpenRouter
+- Tavily web search
+- Exa web search
 
-The app also adjusts provider preference for certain prompt types. Time-sensitive prompts like news, weather, sports, time/date, market updates, and similar live-info questions can prefer more capable live-access models first.
+The app also adjusts provider preference for certain prompt types. Time-sensitive prompts like news, weather, sports, time/date, market updates, and similar live-info questions can prefer more capable live-access models first. When enabled, Tavily and Exa can add web-search context so the app can answer with fresher information about what is happening right now.
 
 ## Quick Start
 
@@ -73,7 +76,7 @@ TAVILY_API_KEY=your_tavily_key
 EXA_API_KEY=your_exa_key
 ```
 
-Any one of these provider keys is enough to get the app working. Adding more than one gives SmartChattr fallback options and better routing flexibility for different prompt types.
+Any one of these provider keys is enough to get the app working. Adding more than one gives SmartChattr fallback options and better routing flexibility for different prompt types. `TAVILY_API_KEY` and `EXA_API_KEY` are optional, but they enable the web-search-backed live info flow for timely questions.
 
 ### 3. Run Development
 

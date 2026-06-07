@@ -10,6 +10,15 @@ import { InputBar } from '@/components/InputBar';
 import { TypingIndicator } from '@/components/TypingIndicator';
 import { ErrorToast } from '@/components/ErrorToast';
 import { useChats } from '@/hooks/useChats';
+import type { ChatProviderSelection } from '@/lib/llm';
+
+const CHAT_PROVIDERS: ChatProviderSelection[] = ['auto', 'google', 'groq', 'openrouter'];
+
+function parseProvider(value: string | null): ChatProviderSelection {
+  return value && CHAT_PROVIDERS.includes(value as ChatProviderSelection)
+    ? value as ChatProviderSelection
+    : 'auto';
+}
 
 export default function ChatByIdPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -54,7 +63,11 @@ export default function ChatByIdPage() {
     if (handledAutoSendRef.current === autoSend) return;
 
     handledAutoSendRef.current = autoSend;
-    sendMessage(autoSend);
+    const provider = parseProvider(searchParams.get('provider'));
+    sendMessage(autoSend, {
+      provider,
+      internetAccess: provider !== 'auto' && searchParams.get('internetAccess') === '1',
+    });
     router.replace(`/chat/${selectedChatId}`);
   }, [loading, messagesReady, router, searchParams, selectedChatId, sendMessage]);
 

@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateText } from '@/lib/aiProviders';
-import type { ChatTurn } from '@/lib/aiProviders';
+import type { ChatProviderSelection, ChatTurn } from '@/lib/aiProviders';
+
+const CHAT_PROVIDERS: ChatProviderSelection[] = ['auto', 'google', 'groq', 'openrouter'];
+
+function parseProvider(value: unknown): ChatProviderSelection {
+  return typeof value === 'string' && CHAT_PROVIDERS.includes(value as ChatProviderSelection)
+    ? value as ChatProviderSelection
+    : 'auto';
+}
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const message = typeof body?.message === 'string' ? body.message.trim() : '';
     const history = Array.isArray(body?.history) ? (body.history as ChatTurn[]) : [];
+    const provider = parseProvider(body?.provider);
+    const internetAccess = provider !== 'auto' && body?.internetAccess === true;
 
     if (!message) {
       return NextResponse.json({ reply: 'Please provide a message.' }, { status: 400 });
@@ -16,6 +26,8 @@ export async function POST(request: NextRequest) {
       message,
       history,
       mode: 'chat',
+      provider,
+      internetAccess,
     });
 
     if ('text' in result) {

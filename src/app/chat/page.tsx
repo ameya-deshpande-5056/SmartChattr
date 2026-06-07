@@ -8,6 +8,7 @@ import { ChatNotices } from '@/components/ChatNotices';
 import { InputBar } from '@/components/InputBar';
 import { StarterPrompts } from '@/components/StarterPrompts';
 import { useChats } from '@/hooks/useChats';
+import type { ChatRequestOptions } from '@/lib/llm';
 
 export default function ChatPage() {
   const router = useRouter();
@@ -28,13 +29,20 @@ export default function ChatPage() {
     setDraftVersion((current) => current + 1);
   };
 
-  const handleStartFromDraft = async (text: string) => {
+  const handleStartFromDraft = async (text: string, options: ChatRequestOptions = {}) => {
     setStartingChat(true);
 
     try {
       const newChatId = await createChatHook();
+      const params = new URLSearchParams({ autoSend: text });
+      if (options.provider && options.provider !== 'auto') {
+        params.set('provider', options.provider);
+        if (options.internetAccess) {
+          params.set('internetAccess', '1');
+        }
+      }
       setSidebarOpen(false);
-      router.push(`/chat/${newChatId}?autoSend=${encodeURIComponent(text)}`);
+      router.push(`/chat/${newChatId}?${params.toString()}`);
     } finally {
       setStartingChat(false);
     }

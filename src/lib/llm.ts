@@ -3,23 +3,50 @@ export interface ChatTurn {
   content: string;
 }
 
+export type ChatProviderSelection = 'auto' | 'google' | 'groq' | 'openrouter';
+
+export interface ChatRequestOptions {
+  provider?: ChatProviderSelection;
+  internetAccess?: boolean;
+}
+
 export interface LLMReply {
   reply: string;
   provider?: string;
   model?: string;
 }
 
-export async function callLLM(prompt: string, history: ChatTurn[] = []): Promise<LLMReply> {
+type LLMErrorResponse = {
+  reply?: string;
+};
+
+export async function callLLM(prompt: string, history: ChatTurn[] = [], options: ChatRequestOptions = {}): Promise<LLMReply> {
   const response = await fetch('/api/chat', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ message: prompt, history }),
+    body: JSON.stringify({
+      message: prompt,
+      history,
+      provider: options.provider ?? 'auto',
+      internetAccess: Boolean(options.internetAccess),
+    }),
   });
 
   if (!response.ok) {
-    throw new Error(`LLM API error: ${response.status}`);
+    let message = `LLM API error: ${response.status}`;
+
+    try {
+      const data = await response.json() as LLMErrorResponse;
+      if (data.reply) {
+        message = data.reply;
+      }
+    } catch {
+      // Keep the status-based fallback if the server did not return JSON.
+    }
+
+    throw new Error(message);
   }
 
   const data = await response.json() as LLMReply;

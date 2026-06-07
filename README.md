@@ -17,8 +17,9 @@ A local-first AI chat app built with Next.js, TypeScript, Dexie, and multiple LL
 - Local IndexedDB persistence with refresh-safe chat history
 - Full-text search across all chats (titles and message content)
 - AI provider fallback chain for chat responses
+- Bottom-bar AI provider selector with Auto, Google Gemini, Groq, and OpenRouter options
 - Context-aware routing for live/current-info prompts
-- Web search augmentation for timely questions and current events
+- Internet access toggle for explicit providers, backed by Tavily with Exa fallback
 - AI-generated chat titles from the first prompt
 - Markdown rendering in chat with code blocks, tables, task lists, and copy actions
 - Horizontal scroll for code blocks and tables on mobile
@@ -44,13 +45,19 @@ A local-first AI chat app built with Next.js, TypeScript, Dexie, and multiple LL
 
 ## AI Providers
 
-SmartChattr can use multiple providers and falls back when one is unavailable or rate-limited.
+SmartChattr can use multiple providers and falls back when one is unavailable or rate-limited. The input bar includes a provider selector so each message can use either the default automatic routing or a specific provider.
 
 - Google Gemini
 - Groq
 - OpenRouter
 - Tavily web search
 - Exa web search
+
+Provider behavior:
+
+- **Auto**: Keeps the existing SmartChattr routing behavior. It uses the fallback chain and can automatically prefer live-capable routing for timely prompts.
+- **Google Gemini**, **Groq**, and **OpenRouter**: Force the selected provider for that message instead of using the fallback chain.
+- **Internet access toggle**: Appears for every non-Auto provider. When enabled, SmartChattr fetches web context with Tavily first and falls back to Exa before sending the augmented prompt to the selected provider.
 
 The app also adjusts provider preference for certain prompt types. Time-sensitive prompts like news, weather, sports, time/date, market updates, and similar live-info questions can prefer more capable live-access models first. When enabled, Tavily and Exa can add web-search context so the app can answer with fresher information about what is happening right now.
 
@@ -66,7 +73,11 @@ npm install
 
 ### 2. Create `.env.local`
 
-At minimum, add one provider key. Google Gemini is the simplest starting point.
+Copy the included example file, then add at least one provider key. Google Gemini is the simplest starting point.
+
+```bash
+cp .env.example .env.local
+```
 
 ```env
 GEMINI_API_KEY=your_google_ai_studio_key
@@ -76,7 +87,7 @@ TAVILY_API_KEY=your_tavily_key
 EXA_API_KEY=your_exa_key
 ```
 
-Any one of these provider keys is enough to get the app working. Adding more than one gives SmartChattr fallback options and better routing flexibility for different prompt types. `TAVILY_API_KEY` and `EXA_API_KEY` are optional, but they enable the web-search-backed live info flow for timely questions.
+Any one of the chat provider keys (`GEMINI_API_KEY`, `GROQ_API_KEY`, or `OPENROUTER_API_KEY`) is enough to get the app working. Adding more than one gives SmartChattr fallback options and lets the provider selector use more choices. `TAVILY_API_KEY` and `EXA_API_KEY` are optional, but they enable the internet-access toggle and web-search-backed live info flow.
 
 ### 3. Run Development
 
@@ -100,13 +111,15 @@ npm start
 1. Open the landing page and click `Start chatting`
 2. Start a fresh chat by typing your own message or tapping a starter prompt
 3. Create or select chats from the sidebar as needed
-4. Send messages and let SmartChattr keep a compact rolling context window
-5. Use the settings menu to:
+4. Pick `Auto` or a specific provider from the input bar before sending
+5. Turn on internet access for non-Auto providers when you want Tavily/Exa web context
+6. Send messages and let SmartChattr keep a compact rolling context window
+7. Use the settings menu to:
    - export the current chat
    - export all chats
    - export/import the full local database
    - switch theme mode
-6. Use the copy button below assistant messages for quick copy feedback
+8. Use the copy button below assistant messages for quick copy feedback
 
 ## Export and Backup
 

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { generateId } from '@/utils';
 import type { Message } from '@/types/chat';
 import { callLLM } from '@/lib/llm';
-import type { ChatTurn } from '@/lib/llm';
+import type { ChatRequestOptions, ChatTurn } from '@/lib/llm';
 import type { MessageRole } from '@/types/chat';
 
 const MAX_RECENT_MESSAGES = 6;
@@ -44,7 +44,7 @@ export function useChat(chatId?: string | null) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const sendMessage = async (text: string) => {
+  const sendMessage = async (text: string, options: ChatRequestOptions = {}) => {
     if (!text.trim() || loading || !chatId) return;
 
     setError(null);
@@ -55,7 +55,7 @@ export function useChat(chatId?: string | null) {
     setLoading(true);
 
     try {
-      const result = await callLLM(text, buildHistory(messages));
+      const result = await callLLM(text, buildHistory(messages), options);
       const assistantId = generateId();
       const assistantMessage: Message = {
         id: assistantId,
@@ -68,7 +68,7 @@ export function useChat(chatId?: string | null) {
       };
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (err) {
-      setError('Failed to get response. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to get response. Please try again.');
       setMessages((prev) => prev.slice(0, -1));
     } finally {
       setLoading(false);

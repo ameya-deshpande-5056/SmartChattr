@@ -22,11 +22,14 @@ type OpenAICompatibleResponse = {
 };
 
 type GenerationMode = 'chat' | 'title';
+export type ChatProviderSelection = 'auto' | 'google' | 'groq' | 'openrouter';
 
 type GenerateTextOptions = {
   message: string;
   history?: ChatTurn[];
   mode?: GenerationMode;
+  provider?: ChatProviderSelection;
+  internetAccess?: boolean;
 };
 
 type ProviderError = {
@@ -499,11 +502,14 @@ export async function generateText({
   message,
   history = [],
   mode = 'chat',
+  provider = 'auto',
+  internetAccess = false,
 }: GenerateTextOptions): Promise<ProviderSuccess | { error: ProviderError }> {
-  const shouldPreferLiveCapability = mode === 'chat' && prefersLiveCapability(message, history);
+  const shouldPreferLiveCapability = mode === 'chat' && provider === 'auto' && prefersLiveCapability(message, history);
+  const shouldUseInternetAccess = mode === 'chat' && provider !== 'auto' && internetAccess;
   let augmentedMessage = message;
 
-  if (shouldPreferLiveCapability) {
+  if (shouldPreferLiveCapability || shouldUseInternetAccess) {
     const searchContext = (await searchTavily(message)) || (await searchExa(message));
     if (searchContext) {
       augmentedMessage = `Context from web search:\n${searchContext}\n\nUser question: ${message}`;
@@ -516,17 +522,23 @@ export async function generateText({
         () => tryGroqProvider(augmentedMessage, history, mode),
         () => tryGoogleProvider(augmentedMessage, history, mode),
       ]
-    : shouldPreferLiveCapability
-      ? [
-          () => tryGroqProvider(augmentedMessage, history, mode),
-          () => tryOpenRouterProvider(augmentedMessage, history, mode),
-          () => tryGoogleProvider(augmentedMessage, history, mode),
-        ]
-      : [
-          () => tryGoogleProvider(augmentedMessage, history, mode),
-          () => tryGroqProvider(augmentedMessage, history, mode),
-          () => tryOpenRouterProvider(augmentedMessage, history, mode),
-        ];
+    : provider === 'google'
+      ? [() => tryGoogleProvider(augmentedMessage, history, mode)]
+      : provider === 'groq'
+        ? [() => tryGroqProvider(augmentedMessage, history, mode)]
+        : provider === 'openrouter'
+          ? [() => tryOpenRouterProvider(augmentedMessage, history, mode)]
+          : shouldPreferLiveCapability
+            ? [
+                () => tryGroqProvider(augmentedMessage, history, mode),
+                () => tryOpenRouterProvider(augmentedMessage, history, mode),
+                () => tryGoogleProvider(augmentedMessage, history, mode),
+              ]
+            : [
+                () => tryGoogleProvider(augmentedMessage, history, mode),
+                () => tryGroqProvider(augmentedMessage, history, mode),
+                () => tryOpenRouterProvider(augmentedMessage, history, mode),
+              ];
   const errors: Array<{ error: ProviderError }> = [];
 
   for (const attempt of providerAttempts) {
@@ -543,8 +555,10 @@ export async function generateText({
       error: {
         provider: 'none',
         model: 'none',
-        status: 500,
-        text: 'No configured AI provider is available.',
+        status: 503,
+        text: provider === 'auto'
+          ? 'No configured AI provider is available. Add GEMINI_API_KEY, GROQ_API_KEY, or OPENROUTER_API_KEY to .env.local and restart the dev server.'
+          : `${provider} is not configured. Add its API key to .env.local and restart the dev server.`,
       },
     }
   );

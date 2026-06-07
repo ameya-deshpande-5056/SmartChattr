@@ -8,8 +8,10 @@ import { LandingFooter } from '@/components/LandingFooter';
 
 const features = [
   'Persistent local chat history',
+  'Provider picker with Auto mode',
+  'Internet toggle for web search',
   'Full-text search across all chats',
-  'Markdown with math/LaTeX support',
+  'Markdown with math/LaTeX',
   'PDF export and full backup support',
 ];
 
@@ -66,7 +68,7 @@ export default function LandingPage() {
             </h1>
 
             <p className={`mt-6 max-w-xl text-base leading-8 ${effectiveTheme === 'dark' ? 'text-gray-300' : 'text-gray-600'} sm:text-lg`}>
-              SmartChattr keeps the experience focused: write, ask, save, return later. Your chats stay local, the interface stays clean, and the app stays out of the way.
+              SmartChattr keeps the experience focused: write, ask, choose your AI provider when it matters, save, return later. Your chats stay local, the interface stays clean, and the app stays out of the way.
             </p>
 
             <div className="mt-8 grid gap-3 grid-cols-[auto_1fr]">
@@ -77,7 +79,7 @@ export default function LandingPage() {
                 Start chatting
               </Link>
               <div className={`inline-flex items-center rounded-full border px-5 py-3 text-sm ${effectiveTheme === 'dark' ? 'border-gray-700 bg-gray-800 text-gray-300' : 'border-gray-300 bg-white text-gray-600'}`}>
-                Local-first, exportable, and easy to keep around.
+                Local-first, provider-flexible, and easy to keep around.
               </div>
             </div>
 
@@ -238,6 +240,38 @@ export default function LandingPage() {
                   </div>
 
                   <div className={`border-t p-4 ${effectiveTheme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'}`}>
+                    <div className={`mb-2 flex flex-wrap items-center gap-2 text-xs ${effectiveTheme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                      <div className="relative">
+                        <div className={`flex h-9 min-w-36 items-center justify-between gap-2 rounded-full border px-3 pr-8 text-xs font-medium ${
+                          effectiveTheme === 'dark'
+                            ? 'border-gray-600 bg-gray-700 text-gray-100'
+                            : 'border-gray-300 bg-gray-50 text-gray-700'
+                        }`}>
+                          <span>Google Gemini</span>
+                        </div>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className={`pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 ${effectiveTheme === 'dark' ? 'text-gray-300' : 'text-gray-500'}`}
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          aria-hidden="true"
+                        >
+                          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className={`inline-flex h-9 items-center gap-2 rounded-full border px-3 text-xs font-medium ${
+                        effectiveTheme === 'dark'
+                          ? 'border-blue-400 bg-blue-950/40 text-blue-200'
+                          : 'border-blue-500 bg-blue-50 text-blue-700'
+                      }`}>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path>
+                          <path d="M2 12h20"></path>
+                        </svg>
+                        Internet on
+                      </div>
+                    </div>
                     <div className="flex gap-2">
                       <div className={`flex-1 rounded-full border px-4 py-3 text-sm ${effectiveTheme === 'dark' ? 'border-gray-600 bg-gray-700 text-gray-400' : 'border-gray-300 bg-white text-gray-500'}`}>
                         Type your message...

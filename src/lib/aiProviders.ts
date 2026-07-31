@@ -13,6 +13,15 @@ type GeminiCandidateResponse = {
   }>;
 };
 
+type GeminiModel = {
+  name?: string;
+  supportedGenerationMethods?: string[];
+};
+
+type GeminiModelsResponse = {
+  models?: GeminiModel[];
+};
+
 type OpenAICompatibleResponse = {
   choices?: Array<{
     message?: {
@@ -30,6 +39,7 @@ type GenerateTextOptions = {
   mode?: GenerationMode;
   provider?: ChatProviderSelection;
   internetAccess?: boolean;
+  personalization?: string;
 };
 
 type ProviderError = {
@@ -83,20 +93,7 @@ type ExaSearchResponse = {
 };
 
 const GEMINI_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
-const GOOGLE_CHAT_MODEL_IDS = [
-  'gemini-flash-latest',
-  'gemini-3-flash-preview',
-  'gemini-3.1-flash-lite-preview',
-  'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-] as const;
-const GOOGLE_TITLE_MODEL_IDS = [
-  'gemini-2.5-flash-lite',
-  'gemini-2.5-flash',
-  'gemini-3.1-flash-lite-preview',
-  'gemini-3-flash-preview',
-  'gemini-flash-latest',
-] as const;
+const GOOGLE_MODEL_FALLBACK = 'gemini-flash-latest';
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const TAVILY_API_URL = 'https://api.tavily.com/search';
 const EXA_API_URL = 'https://api.exa.ai/search';
@@ -233,12 +230,13 @@ async function searchTavily(query: string): Promise<string | null> {
   }
 }
 
-function getSystemInstruction(mode: GenerationMode) {
+function getSystemInstruction(mode: GenerationMode, personalization = '') {
   if (mode === 'title') {
     return 'Create a short chat title from the user prompt. Return only the title. Use 2 to 6 words. No quotes. No punctuation unless essential. Capitalize the first letter.';
   }
 
-  return 'Be accurate, clear, and friendly. Use plain language. Keep answers concise but complete. Always finish fully - never cut off. Add warmth when helpful. Use formatting only when it improves clarity. Use live web or code tools only for current/external information.';
+  const baseInstruction = 'Be accurate, clear, and friendly. Use plain language. Keep answers concise but complete. Always finish fully - never cut off. Add warmth when helpful. Use formatting only when it improves clarity. Use live web or code tools only for current/external information.';
+  return personalization ? `${baseInstruction}\n\nUser personalization rules and guidelines:\n${personalization}` : baseInstruction;
 }
 
 function getProviderLimits(mode: GenerationMode) {
@@ -260,8 +258,6 @@ function getProviderLimits(mode: GenerationMode) {
 function buildGeminiGenerationConfig(modelId: string, mode: GenerationMode) {
   const limits = getProviderLimits(mode);
   const generationConfig: Record<string, unknown> = {
-    temperature: limits.temperature,
-    topP: limits.topP,
     maxOutputTokens: limits.maxOutputTokens,
   };
 
@@ -278,8 +274,48 @@ function buildGeminiGenerationConfig(modelId: string, mode: GenerationMode) {
   return generationConfig;
 }
 
-function getGoogleModelIds(mode: GenerationMode) {
-  return mode === 'title' ? GOOGLE_TITLE_MODEL_IDS : GOOGLE_CHAT_MODEL_IDS;
+function getGeminiModelVersion(modelId: string) {
+  const match = /^gemini-(\d+)(?:\.(\d+))?-flash(-lite)?$/.exec(modelId);
+  if (!match) return null;
+
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2] ?? 0),
+    isLite: Boolean(match[3]),
+  };
+}
+
+async function getGoogleModelIds(apiKey: string) {
+  try {
+    const response = await fetch(`${GEMINI_API_BASE_URL}?pageSize=1000`, {
+      headers: {
+        'x-goog-api-key': apiKey,
+      },
+    });
+    if (!response.ok) return [GOOGLE_MODEL_FALLBACK];
+
+    const data = (await response.json()) as GeminiModelsResponse;
+    const currentModels = (data.models ?? [])
+      .filter((model) => model.supportedGenerationMethods?.includes('generateContent'))
+      .map((model) => model.name?.replace(/^models\//, '') ?? '')
+      .filter((modelId) => getGeminiModelVersion(modelId) !== null)
+      .sort((first, second) => {
+        const firstVersion = getGeminiModelVersion(first)!;
+        const secondVersion = getGeminiModelVersion(second)!;
+
+        return secondVersion.major - firstVersion.major
+          || secondVersion.minor - firstVersion.minor
+          || Number(firstVersion.isLite) - Number(secondVersion.isLite);
+      });
+
+    return currentModels.length > 0
+      ? currentModels.includes(GOOGLE_MODEL_FALLBACK)
+        ? currentModels
+        : [...currentModels, GOOGLE_MODEL_FALLBACK]
+      : [GOOGLE_MODEL_FALLBACK];
+  } catch {
+    return [GOOGLE_MODEL_FALLBACK];
+  }
 }
 
 function getGroqModelIds(mode: GenerationMode) {
@@ -310,7 +346,7 @@ function buildGeminiContents(message: string, history: ChatTurn[]) {
   ];
 }
 
-function buildOpenAICompatibleMessages(message: string, history: ChatTurn[], mode: GenerationMode) {
+function buildOpenAICompatibleMessages(message: string, history: ChatTurn[], mode: GenerationMode, personalization: string) {
   const cleanedHistory = history
     .filter((turn): turn is ChatTurn => Boolean(turn.role && turn.content.trim()))
     .slice(-MAX_HISTORY_TURNS)
@@ -320,7 +356,7 @@ function buildOpenAICompatibleMessages(message: string, history: ChatTurn[], mod
     }));
 
   return [
-    { role: 'system', content: getSystemInstruction(mode) },
+    { role: 'system', content: getSystemInstruction(mode, personalization) },
     ...cleanedHistory,
     { role: 'user', content: compactText(message, getMessageLimit(message)) },
   ];
@@ -347,13 +383,14 @@ async function tryGoogleProvider(
   message: string,
   history: ChatTurn[],
   mode: GenerationMode,
+  personalization: string,
 ): Promise<ProviderSuccess | { error: ProviderError } | null> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
 
   let lastError: ProviderError | null = null;
 
-  for (const model of getGoogleModelIds(mode)) {
+  for (const model of await getGoogleModelIds(apiKey)) {
     try {
       const response = await fetch(`${GEMINI_API_BASE_URL}/${model}:generateContent`, {
         method: 'POST',
@@ -363,7 +400,7 @@ async function tryGoogleProvider(
         },
         body: JSON.stringify({
           systemInstruction: {
-            parts: [{ text: getSystemInstruction(mode) }],
+            parts: [{ text: getSystemInstruction(mode, personalization) }],
           },
           contents: buildGeminiContents(message, history),
           generationConfig: buildGeminiGenerationConfig(model, mode),
@@ -397,6 +434,7 @@ async function tryGroqProvider(
   message: string,
   history: ChatTurn[],
   mode: GenerationMode,
+  personalization: string,
 ): Promise<ProviderSuccess | { error: ProviderError } | null> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return null;
@@ -414,7 +452,7 @@ async function tryGroqProvider(
         },
         body: JSON.stringify({
           model,
-          messages: buildOpenAICompatibleMessages(message, history, mode),
+          messages: buildOpenAICompatibleMessages(message, history, mode, personalization),
           temperature: limits.temperature,
           top_p: limits.topP,
           max_tokens: limits.maxOutputTokens,
@@ -445,6 +483,7 @@ async function tryOpenRouterProvider(
   message: string,
   history: ChatTurn[],
   mode: GenerationMode,
+  personalization: string,
 ): Promise<ProviderSuccess | { error: ProviderError } | null> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return null;
@@ -462,7 +501,7 @@ async function tryOpenRouterProvider(
         },
         body: JSON.stringify({
           model,
-          messages: buildOpenAICompatibleMessages(message, history, mode),
+          messages: buildOpenAICompatibleMessages(message, history, mode, personalization),
           temperature: limits.temperature,
           top_p: limits.topP,
           max_tokens: limits.maxOutputTokens,
@@ -504,6 +543,7 @@ export async function generateText({
   mode = 'chat',
   provider = 'auto',
   internetAccess = false,
+  personalization = '',
 }: GenerateTextOptions): Promise<ProviderSuccess | { error: ProviderError }> {
   const shouldPreferLiveCapability = mode === 'chat' && provider === 'auto' && prefersLiveCapability(message, history);
   const shouldUseInternetAccess = mode === 'chat' && provider !== 'auto' && internetAccess;
@@ -518,26 +558,26 @@ export async function generateText({
 
   const providerAttempts: ProviderAttempt[] = mode === 'title'
     ? [
-        () => tryOpenRouterProvider(augmentedMessage, history, mode),
-        () => tryGroqProvider(augmentedMessage, history, mode),
-        () => tryGoogleProvider(augmentedMessage, history, mode),
+        () => tryOpenRouterProvider(augmentedMessage, history, mode, personalization),
+        () => tryGroqProvider(augmentedMessage, history, mode, personalization),
+        () => tryGoogleProvider(augmentedMessage, history, mode, personalization),
       ]
     : provider === 'google'
-      ? [() => tryGoogleProvider(augmentedMessage, history, mode)]
+      ? [() => tryGoogleProvider(augmentedMessage, history, mode, personalization)]
       : provider === 'groq'
-        ? [() => tryGroqProvider(augmentedMessage, history, mode)]
+        ? [() => tryGroqProvider(augmentedMessage, history, mode, personalization)]
         : provider === 'openrouter'
-          ? [() => tryOpenRouterProvider(augmentedMessage, history, mode)]
+          ? [() => tryOpenRouterProvider(augmentedMessage, history, mode, personalization)]
           : shouldPreferLiveCapability
             ? [
-                () => tryGroqProvider(augmentedMessage, history, mode),
-                () => tryOpenRouterProvider(augmentedMessage, history, mode),
-                () => tryGoogleProvider(augmentedMessage, history, mode),
+                () => tryGroqProvider(augmentedMessage, history, mode, personalization),
+                () => tryOpenRouterProvider(augmentedMessage, history, mode, personalization),
+                () => tryGoogleProvider(augmentedMessage, history, mode, personalization),
               ]
             : [
-                () => tryGoogleProvider(augmentedMessage, history, mode),
-                () => tryGroqProvider(augmentedMessage, history, mode),
-                () => tryOpenRouterProvider(augmentedMessage, history, mode),
+                () => tryGoogleProvider(augmentedMessage, history, mode, personalization),
+                () => tryGroqProvider(augmentedMessage, history, mode, personalization),
+                () => tryOpenRouterProvider(augmentedMessage, history, mode, personalization),
               ];
   const errors: Array<{ error: ProviderError }> = [];
 

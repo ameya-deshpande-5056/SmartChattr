@@ -1,3 +1,5 @@
+import { getAiPersonalization } from '@/utils';
+
 export interface ChatTurn {
   role: 'user' | 'assistant';
   content: string;
@@ -31,6 +33,7 @@ export async function callLLM(prompt: string, history: ChatTurn[] = [], options:
       history,
       provider: options.provider ?? 'auto',
       internetAccess: Boolean(options.internetAccess),
+      personalization: getAiPersonalization(),
     }),
   });
 

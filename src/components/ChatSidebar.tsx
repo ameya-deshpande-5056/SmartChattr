@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { cn, downloadFile, buildAllChatsPrintableHtml, buildChatText, buildPrintableHtml, openPrintPreview, getThemeMode, setTheme } from '@/utils';
+import { cn, downloadFile, buildAllChatsPrintableHtml, buildChatText, buildPrintableHtml, openPrintPreview, getAiPersonalization, getThemeMode, MAX_AI_PERSONALIZATION_LENGTH, setAiPersonalization, setTheme } from '@/utils';
 import type { ChatPreview, Message } from '@/types/chat';
 import { Trash2, X, Settings, Download, Package, Sun, Moon, Zap, Upload, Database, Search, MoreVertical, FileText, Printer, DownloadCloud } from 'lucide-react';
 import { exportDatabaseBackup, importDatabaseBackup, loadMessages, loadMessagesByChat, exportSingleChatAsJson, type ImportMode } from '@/lib/db';
@@ -21,6 +21,7 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [themeMode, setThemeModeState] = useState<'auto' | 'light' | 'dark'>(getThemeMode);
+  const [aiPersonalization, setAiPersonalizationState] = useState(getAiPersonalization);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredChats, setFilteredChats] = useState<ChatPreview[]>(chats);
@@ -346,6 +347,25 @@ export function ChatSidebar({ className, chats, currentChatId, createNewChat, de
         </div>
         {isSettingsOpen && (
           <div className="p-4 border-t bg-white dark:bg-gray-800 space-y-3">
+            <div className="space-y-2">
+              <label htmlFor="ai-personalization" className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">AI Personalization</label>
+              <textarea
+                id="ai-personalization"
+                value={aiPersonalization}
+                maxLength={MAX_AI_PERSONALIZATION_LENGTH}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setAiPersonalizationState(value);
+                  setAiPersonalization(value);
+                }}
+                placeholder="Add rules and guidelines for how AI should behave."
+                className="min-h-24 w-full resize-none [field-sizing:content] rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
+              />
+              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                <span>Saved automatically and applied to future replies.</span>
+                <span>{aiPersonalization.length}/{MAX_AI_PERSONALIZATION_LENGTH}</span>
+              </div>
+            </div>
             <div className="space-y-2">
               <label className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Export All</label>
               <div className="flex gap-2">

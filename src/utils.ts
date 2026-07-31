@@ -387,4 +387,15 @@ export function setTheme(theme: 'auto' | 'light' | 'dark') {
   document.documentElement.classList.toggle('dark', getTheme() === 'dark');
 }
 
+export const MAX_AI_PERSONALIZATION_LENGTH = 2000;
+
+export function getAiPersonalization(): string {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem('aiPersonalization') ?? '';
+}
+
+export function setAiPersonalization(value: string) {
+  localStorage.setItem('aiPersonalization', value);
+}
+
 

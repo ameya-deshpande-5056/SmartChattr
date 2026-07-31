@@ -1,4 +1,5 @@
 import { getAiPersonalization } from '@/utils';
+import type { GeminiModel, GroqModel, OpenRouterModel } from '@/lib/openRouterModels';
 
 export interface ChatTurn {
   role: 'user' | 'assistant';
@@ -10,6 +11,9 @@ export type ChatProviderSelection = 'auto' | 'google' | 'groq' | 'openrouter';
 export interface ChatRequestOptions {
   provider?: ChatProviderSelection;
   internetAccess?: boolean;
+  geminiModel?: GeminiModel;
+  groqModel?: GroqModel;
+  openRouterModel?: OpenRouterModel;
 }
 
 export interface LLMReply {
@@ -33,6 +37,9 @@ export async function callLLM(prompt: string, history: ChatTurn[] = [], options:
       history,
       provider: options.provider ?? 'auto',
       internetAccess: Boolean(options.internetAccess),
+      geminiModel: options.geminiModel,
+      groqModel: options.groqModel,
+      openRouterModel: options.openRouterModel,
       personalization: getAiPersonalization(),
     }),
   });

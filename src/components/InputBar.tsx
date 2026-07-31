@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, KeyboardEvent } from 'react';
 import { Globe, Send } from 'lucide-react';
 import type { ChatProviderSelection, ChatRequestOptions } from '@/lib/llm';
+import { DEFAULT_GEMINI_MODEL, DEFAULT_GROQ_MODEL, DEFAULT_OPENROUTER_MODEL, GEMINI_FREE_MODEL_GROUPS, GROQ_FREE_MODEL_GROUPS, isGeminiModel, isGroqModel, isOpenRouterModel, OPENROUTER_FREE_MODEL_GROUPS, type GeminiModel, type GroqModel, type OpenRouterModel } from '@/lib/openRouterModels';
 
 interface InputBarProps {
   onSend: (text: string, options?: ChatRequestOptions) => void;
@@ -19,9 +20,27 @@ const PROVIDER_OPTIONS: Array<{ value: ChatProviderSelection; label: string }> =
 export function InputBar({ onSend, loading, draftText, draftVersion }: InputBarProps) {
   const [input, setInput] = useState('');
   const [provider, setProvider] = useState<ChatProviderSelection>('auto');
+  const [geminiModel, setGeminiModel] = useState<GeminiModel>(DEFAULT_GEMINI_MODEL);
+  const [groqModel, setGroqModel] = useState<GroqModel>(DEFAULT_GROQ_MODEL);
+  const [openRouterModel, setOpenRouterModel] = useState<OpenRouterModel>(DEFAULT_OPENROUTER_MODEL);
   const [internetAccess, setInternetAccess] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isAutoProvider = provider === 'auto';
+  const isGeminiProvider = provider === 'google';
+  const isGroqProvider = provider === 'groq';
+  const isOpenRouterProvider = provider === 'openrouter';
+  const modelGroups = isGeminiProvider
+    ? GEMINI_FREE_MODEL_GROUPS
+    : isGroqProvider
+      ? GROQ_FREE_MODEL_GROUPS
+      : isOpenRouterProvider
+        ? OPENROUTER_FREE_MODEL_GROUPS
+        : [];
+  const selectedModel = isGeminiProvider
+    ? geminiModel
+    : isGroqProvider
+      ? groqModel
+      : openRouterModel;
 
   const resizeTextarea = () => {
     const textarea = textareaRef.current;
@@ -46,6 +65,9 @@ export function InputBar({ onSend, loading, draftText, draftVersion }: InputBarP
       onSend(input.trim(), {
         provider,
         internetAccess: !isAutoProvider && internetAccess,
+        geminiModel: isGeminiProvider ? geminiModel : undefined,
+        groqModel: isGroqProvider ? groqModel : undefined,
+        openRouterModel: isOpenRouterProvider ? openRouterModel : undefined,
       });
       setInput('');
     }
@@ -83,6 +105,32 @@ export function InputBar({ onSend, loading, draftText, draftVersion }: InputBarP
               </option>
             ))}
           </select>
+          {!isAutoProvider && (
+            <>
+              <label className="sr-only" htmlFor="provider-model-select">AI model</label>
+              <select
+                id="provider-model-select"
+                value={selectedModel}
+                onChange={(event) => {
+                  const model = event.target.value;
+                  if (isGeminiModel(model)) setGeminiModel(model);
+                  if (isGroqModel(model)) setGroqModel(model);
+                  if (isOpenRouterModel(model)) setOpenRouterModel(model);
+                }}
+                disabled={loading}
+                className="h-9 rounded-full border border-gray-300 bg-gray-50 px-3 text-xs font-medium text-gray-700 outline-none transition focus:border-transparent focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                aria-label="Select AI model"
+              >
+                {modelGroups.map((group) => (
+                  <optgroup key={group.label} label={group.label}>
+                    {group.models.map((model) => (
+                      <option key={model.id} value={model.id}>{model.label}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </>
+          )}
           {!isAutoProvider && (
             <button
               type="button"

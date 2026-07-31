@@ -1,3 +1,5 @@
+import { DEFAULT_GEMINI_MODEL, DEFAULT_GROQ_MODEL, DEFAULT_OPENROUTER_MODEL, getDefaultGroqModelIds, type GeminiModel as GeminiModelSelection, type GroqModel, type OpenRouterModel } from '@/lib/openRouterModels';
+
 export type ChatTurn = {
   role: 'user' | 'assistant';
   content: string;
@@ -39,6 +41,9 @@ type GenerateTextOptions = {
   mode?: GenerationMode;
   provider?: ChatProviderSelection;
   internetAccess?: boolean;
+  geminiModel?: GeminiModelSelection;
+  groqModel?: GroqModel;
+  openRouterModel?: OpenRouterModel;
   personalization?: string;
 };
 
@@ -97,20 +102,11 @@ const GOOGLE_MODEL_FALLBACK = 'gemini-flash-latest';
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const TAVILY_API_URL = 'https://api.tavily.com/search';
 const EXA_API_URL = 'https://api.exa.ai/search';
-const GROQ_CHAT_MODEL_IDS = [
-  'groq/compound',
-  'groq/compound-mini',
-  'openai/gpt-oss-20b',
-  'llama-3.1-8b-instant',
-] as const;
 const GROQ_TITLE_MODEL_IDS = [
   'llama-3.1-8b-instant',
   'openai/gpt-oss-20b',
 ] as const;
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const OPENROUTER_MODEL_IDS = [
-  'openrouter/free',
-] as const;
 const MAX_HISTORY_TURNS = 8;
 const DEFAULT_MAX_CONTEXT_CHARS = 2048;
 const TIME_SENSITIVE_PATTERN =
@@ -285,7 +281,11 @@ function getGeminiModelVersion(modelId: string) {
   };
 }
 
-async function getGoogleModelIds(apiKey: string) {
+async function getGoogleModelIds(apiKey: string, geminiModel?: GeminiModelSelection) {
+  if (geminiModel && geminiModel !== DEFAULT_GEMINI_MODEL) {
+    return [geminiModel];
+  }
+
   try {
     const response = await fetch(`${GEMINI_API_BASE_URL}?pageSize=1000`, {
       headers: {
@@ -318,8 +318,10 @@ async function getGoogleModelIds(apiKey: string) {
   }
 }
 
-function getGroqModelIds(mode: GenerationMode) {
-  return mode === 'title' ? GROQ_TITLE_MODEL_IDS : GROQ_CHAT_MODEL_IDS;
+function getGroqModelIds(mode: GenerationMode, groqModel?: GroqModel) {
+  if (mode === 'title') return GROQ_TITLE_MODEL_IDS;
+  if (groqModel && groqModel !== DEFAULT_GROQ_MODEL) return [groqModel];
+  return getDefaultGroqModelIds();
 }
 
 function getMessageLimit(message: string) {
@@ -384,13 +386,14 @@ async function tryGoogleProvider(
   history: ChatTurn[],
   mode: GenerationMode,
   personalization: string,
+  geminiModel?: GeminiModelSelection,
 ): Promise<ProviderSuccess | { error: ProviderError } | null> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
 
   let lastError: ProviderError | null = null;
 
-  for (const model of await getGoogleModelIds(apiKey)) {
+  for (const model of await getGoogleModelIds(apiKey, geminiModel)) {
     try {
       const response = await fetch(`${GEMINI_API_BASE_URL}/${model}:generateContent`, {
         method: 'POST',
@@ -435,6 +438,7 @@ async function tryGroqProvider(
   history: ChatTurn[],
   mode: GenerationMode,
   personalization: string,
+  groqModel?: GroqModel,
 ): Promise<ProviderSuccess | { error: ProviderError } | null> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return null;
@@ -442,7 +446,7 @@ async function tryGroqProvider(
   const limits = getProviderLimits(mode);
   let lastError: ProviderError | null = null;
 
-  for (const model of getGroqModelIds(mode)) {
+  for (const model of getGroqModelIds(mode, groqModel)) {
     try {
       const response = await fetch(GROQ_API_URL, {
         method: 'POST',
@@ -484,6 +488,7 @@ async function tryOpenRouterProvider(
   history: ChatTurn[],
   mode: GenerationMode,
   personalization: string,
+  openRouterModel = DEFAULT_OPENROUTER_MODEL,
 ): Promise<ProviderSuccess | { error: ProviderError } | null> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return null;
@@ -491,7 +496,7 @@ async function tryOpenRouterProvider(
   const limits = getProviderLimits(mode);
   let lastError: ProviderError | null = null;
 
-  for (const model of OPENROUTER_MODEL_IDS) {
+  for (const model of [openRouterModel]) {
     try {
       const response = await fetch(OPENROUTER_API_URL, {
         method: 'POST',
@@ -543,6 +548,9 @@ export async function generateText({
   mode = 'chat',
   provider = 'auto',
   internetAccess = false,
+  geminiModel,
+  groqModel,
+  openRouterModel,
   personalization = '',
 }: GenerateTextOptions): Promise<ProviderSuccess | { error: ProviderError }> {
   const shouldPreferLiveCapability = mode === 'chat' && provider === 'auto' && prefersLiveCapability(message, history);
@@ -558,26 +566,26 @@ export async function generateText({
 
   const providerAttempts: ProviderAttempt[] = mode === 'title'
     ? [
-        () => tryOpenRouterProvider(augmentedMessage, history, mode, personalization),
-        () => tryGroqProvider(augmentedMessage, history, mode, personalization),
-        () => tryGoogleProvider(augmentedMessage, history, mode, personalization),
+        () => tryOpenRouterProvider(augmentedMessage, history, mode, personalization, openRouterModel),
+        () => tryGroqProvider(augmentedMessage, history, mode, personalization, groqModel),
+        () => tryGoogleProvider(augmentedMessage, history, mode, personalization, geminiModel),
       ]
     : provider === 'google'
-      ? [() => tryGoogleProvider(augmentedMessage, history, mode, personalization)]
+      ? [() => tryGoogleProvider(augmentedMessage, history, mode, personalization, geminiModel)]
       : provider === 'groq'
-        ? [() => tryGroqProvider(augmentedMessage, history, mode, personalization)]
+        ? [() => tryGroqProvider(augmentedMessage, history, mode, personalization, groqModel)]
         : provider === 'openrouter'
-          ? [() => tryOpenRouterProvider(augmentedMessage, history, mode, personalization)]
+          ? [() => tryOpenRouterProvider(augmentedMessage, history, mode, personalization, openRouterModel)]
           : shouldPreferLiveCapability
             ? [
-                () => tryGroqProvider(augmentedMessage, history, mode, personalization),
-                () => tryOpenRouterProvider(augmentedMessage, history, mode, personalization),
-                () => tryGoogleProvider(augmentedMessage, history, mode, personalization),
+                () => tryGroqProvider(augmentedMessage, history, mode, personalization, groqModel),
+                () => tryOpenRouterProvider(augmentedMessage, history, mode, personalization, openRouterModel),
+                () => tryGoogleProvider(augmentedMessage, history, mode, personalization, geminiModel),
               ]
             : [
-                () => tryGoogleProvider(augmentedMessage, history, mode, personalization),
-                () => tryGroqProvider(augmentedMessage, history, mode, personalization),
-                () => tryOpenRouterProvider(augmentedMessage, history, mode, personalization),
+                () => tryGoogleProvider(augmentedMessage, history, mode, personalization, geminiModel),
+                () => tryGroqProvider(augmentedMessage, history, mode, personalization, groqModel),
+                () => tryOpenRouterProvider(augmentedMessage, history, mode, personalization, openRouterModel),
               ];
   const errors: Array<{ error: ProviderError }> = [];
 

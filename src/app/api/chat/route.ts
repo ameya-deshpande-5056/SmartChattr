@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateText } from '@/lib/aiProviders';
 import type { ChatProviderSelection, ChatTurn } from '@/lib/aiProviders';
 import { MAX_AI_PERSONALIZATION_LENGTH } from '@/utils';
+import { isGeminiModel, isGroqModel, isOpenRouterModel } from '@/lib/openRouterModels';
 
 const CHAT_PROVIDERS: ChatProviderSelection[] = ['auto', 'google', 'groq', 'openrouter'];
 
@@ -18,6 +19,15 @@ export async function POST(request: NextRequest) {
     const history = Array.isArray(body?.history) ? (body.history as ChatTurn[]) : [];
     const provider = parseProvider(body?.provider);
     const internetAccess = provider !== 'auto' && body?.internetAccess === true;
+    const geminiModel = provider === 'google' && isGeminiModel(body?.geminiModel)
+      ? body.geminiModel
+      : undefined;
+    const groqModel = provider === 'groq' && isGroqModel(body?.groqModel)
+      ? body.groqModel
+      : undefined;
+    const openRouterModel = provider === 'openrouter' && isOpenRouterModel(body?.openRouterModel)
+      ? body.openRouterModel
+      : undefined;
     const personalization = typeof body?.personalization === 'string' ? body.personalization.trim().slice(0, MAX_AI_PERSONALIZATION_LENGTH) : '';
 
     if (!message) {
@@ -30,6 +40,9 @@ export async function POST(request: NextRequest) {
       mode: 'chat',
       provider,
       internetAccess,
+      geminiModel,
+      groqModel,
+      openRouterModel,
       personalization,
     });
 

@@ -11,6 +11,7 @@ import { TypingIndicator } from '@/components/TypingIndicator';
 import { ErrorToast } from '@/components/ErrorToast';
 import { useChats } from '@/hooks/useChats';
 import type { ChatProviderSelection } from '@/lib/llm';
+import { isGeminiModel, isGroqModel, isOpenRouterModel } from '@/lib/openRouterModels';
 
 const CHAT_PROVIDERS: ChatProviderSelection[] = ['auto', 'google', 'groq', 'openrouter'];
 
@@ -64,9 +65,20 @@ export default function ChatByIdPage() {
 
     handledAutoSendRef.current = autoSend;
     const provider = parseProvider(searchParams.get('provider'));
+    const geminiModelParam = searchParams.get('geminiModel');
+    const geminiModel = isGeminiModel(geminiModelParam) ? geminiModelParam : undefined;
+    const groqModelParam = searchParams.get('groqModel');
+    const groqModel = isGroqModel(groqModelParam) ? groqModelParam : undefined;
+    const openRouterModelParam = searchParams.get('openRouterModel');
+    const openRouterModel = isOpenRouterModel(openRouterModelParam)
+      ? openRouterModelParam
+      : undefined;
     sendMessage(autoSend, {
       provider,
       internetAccess: provider !== 'auto' && searchParams.get('internetAccess') === '1',
+      geminiModel: provider === 'google' ? geminiModel : undefined,
+      groqModel: provider === 'groq' ? groqModel : undefined,
+      openRouterModel: provider === 'openrouter' ? openRouterModel : undefined,
     });
     router.replace(`/chat/${selectedChatId}`);
   }, [loading, messagesReady, router, searchParams, selectedChatId, sendMessage]);

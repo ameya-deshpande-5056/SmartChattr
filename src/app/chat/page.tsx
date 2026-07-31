@@ -37,6 +37,15 @@ export default function ChatPage() {
       const params = new URLSearchParams({ autoSend: text });
       if (options.provider && options.provider !== 'auto') {
         params.set('provider', options.provider);
+        if (options.geminiModel) {
+          params.set('geminiModel', options.geminiModel);
+        }
+        if (options.groqModel) {
+          params.set('groqModel', options.groqModel);
+        }
+        if (options.openRouterModel) {
+          params.set('openRouterModel', options.openRouterModel);
+        }
         if (options.internetAccess) {
           params.set('internetAccess', '1');
         }
